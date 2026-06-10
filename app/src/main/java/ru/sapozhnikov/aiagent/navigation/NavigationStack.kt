@@ -2,21 +2,44 @@ package ru.sapozhnikov.aiagent.navigation
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import ru.sapozhnikov.aiagent.presentation.chat.ChatRoot
+import ru.sapozhnikov.aiagent.presentation.chatlist.ChatListRoot
+import java.util.UUID
 
 @Composable
 internal fun NavigationStack(modifier: Modifier = Modifier) {
     val navController = rememberNavController()
+
     NavHost(
         navController = navController,
-        startDestination = Screen.Chat.route,
+        startDestination = Screen.ChatList.route,
         modifier = modifier,
     ) {
-        composable(route = Screen.Chat.route) {
-            ChatRoot()
+        composable(route = Screen.ChatList.route) {
+            ChatListRoot(
+                onConversationClick = { conversationId ->
+                    navController.navigate(Screen.Chat.createRoute(conversationId))
+                },
+                onNewChatClick = {
+                    navController.navigate(Screen.Chat.createRoute(UUID.randomUUID().toString()))
+                },
+            )
+        }
+
+        composable(
+            route = Screen.Chat.ROUTE,
+            arguments = listOf(
+                navArgument(Screen.Chat.CONVERSATION_ID_ARG) { type = NavType.StringType },
+            ),
+        ) {
+            ChatRoot(
+                onOpenChatList = { navController.popBackStack() },
+            )
         }
     }
 }

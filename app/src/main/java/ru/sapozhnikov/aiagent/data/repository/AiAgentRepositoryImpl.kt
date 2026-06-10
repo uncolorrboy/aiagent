@@ -3,6 +3,7 @@ package ru.sapozhnikov.aiagent.data.repository
 import ru.sapozhnikov.aiagent.data.remote.DeepSeekApi
 import ru.sapozhnikov.aiagent.data.remote.dto.ChatCompletionRequest
 import ru.sapozhnikov.aiagent.data.remote.dto.ChatMessageDto
+import ru.sapozhnikov.aiagent.domain.model.ChatHistoryMessage
 import ru.sapozhnikov.aiagent.domain.repository.AiAgentRepository
 import javax.inject.Inject
 
@@ -10,13 +11,16 @@ internal class AiAgentRepositoryImpl @Inject constructor(
     private val api: DeepSeekApi,
 ) : AiAgentRepository {
 
-    override suspend fun sendMessage(userMessage: String): Result<String> {
+    override suspend fun sendMessage(messages: List<ChatHistoryMessage>): Result<String> {
         return try {
             val request = ChatCompletionRequest(
                 model = MODEL,
-                messages = listOf(
-                    ChatMessageDto(role = "user", content = userMessage),
-                ),
+                messages = messages.map { message ->
+                    ChatMessageDto(
+                        role = message.role.toApiRole(),
+                        content = message.text,
+                    )
+                },
             )
             val response = api.createChatCompletion(request)
             val content = response.choices.firstOrNull()?.message?.content

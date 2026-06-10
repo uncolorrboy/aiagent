@@ -1,6 +1,8 @@
 package ru.sapozhnikov.aiagent.domain.repository
 
+import ru.sapozhnikov.aiagent.domain.model.ChatHistoryMessage
+
 internal interface AiAgentRepository {
 
-    suspend fun sendMessage(userMessage: String): Result<String>
+    suspend fun sendMessage(messages: List<ChatHistoryMessage>): Result<String>
 }

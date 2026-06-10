@@ -1,5 +1,6 @@
 package ru.sapozhnikov.aiagent.presentation.chat
 
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -21,13 +22,18 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -35,6 +41,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -46,106 +53,137 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ru.sapozhnikov.aiagent.ui.theme.AiAgentTheme
 
 @Composable
-internal fun ChatRoot() {
+internal fun ChatRoot(onOpenChatList: () -> Unit) {
     val viewModel: ChatViewModel = hiltViewModel()
+    val context = LocalContext.current
 
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
+    LaunchedEffect(viewModel) {
+        viewModel.errorEvents.collect { message ->
+            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+        }
+    }
+
     ChatScreen(
         uiState = uiState,
-        onSendMessage = viewModel::onMessageSent,
+        onSendMessageButtonClicked = viewModel::onMessageSent,
+        onOpenChatList = onOpenChatList,
     )
 }
 
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
-private fun ChatScreen(uiState: ChatScreenUiState, onSendMessage: (String) -> Unit) {
+private fun ChatScreen(
+    uiState: ChatScreenUiState,
+    onSendMessageButtonClicked: (String) -> Unit,
+    onOpenChatList: () -> Unit,
+) {
     val listState = rememberLazyListState()
 
-    ConstraintLayout(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.White)
-            .windowInsetsPadding(
-                WindowInsets.ime
-                    .union(WindowInsets.navigationBars)
-                    .only(WindowInsetsSides.Bottom),
-            ),
-    ) {
-        val (chatRef, textInputRef, sendButtonRef, emptyChatPlaceholderRef) = createRefs()
-
-        LazyColumn(
-            state = listState,
-            modifier = Modifier
-                .fillMaxWidth()
-                .constrainAs(chatRef) {
-                    top.linkTo(parent.top)
-                    bottom.linkTo(textInputRef.top)
-                    height = Dimension.fillToConstraints
+    Scaffold(
+        modifier = Modifier.fillMaxSize(),
+        topBar = {
+            TopAppBar(
+                title = { Text("Чат") },
+                navigationIcon = {
+                    IconButton(onClick = onOpenChatList) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "К списку чатов",
+                        )
+                    }
                 },
-            reverseLayout = true,
-            contentPadding = PaddingValues(top = 8.dp, bottom = 8.dp)
+            )
+        },
+        containerColor = Color.White,
+    ) { innerPadding ->
+        ConstraintLayout(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .background(Color.White)
+                .windowInsetsPadding(
+                    WindowInsets.ime
+                        .union(WindowInsets.navigationBars)
+                        .only(WindowInsetsSides.Bottom),
+                ),
         ) {
-            items(uiState.items) { chatMessage ->
-                ChatItem(chatMessage)
+            val (chatRef, textInputRef, sendButtonRef, emptyChatPlaceholderRef) = createRefs()
+
+            LazyColumn(
+                state = listState,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .constrainAs(chatRef) {
+                        top.linkTo(parent.top)
+                        bottom.linkTo(textInputRef.top)
+                        height = Dimension.fillToConstraints
+                    },
+                reverseLayout = true,
+                contentPadding = PaddingValues(top = 8.dp, bottom = 8.dp)
+            ) {
+                items(uiState.items) { chatMessage ->
+                    ChatItem(chatMessage)
+                }
             }
-        }
 
-        var textInput by remember { mutableStateOf("") }
+            var textInput by remember { mutableStateOf("") }
 
-        OutlinedTextField(
-            modifier = Modifier
-                .constrainAs(textInputRef) {
-                    start.linkTo(parent.start, 16.dp)
-                    end.linkTo(sendButtonRef.start)
-                    bottom.linkTo(parent.bottom, 16.dp)
+            OutlinedTextField(
+                modifier = Modifier
+                    .constrainAs(textInputRef) {
+                        start.linkTo(parent.start, 16.dp)
+                        end.linkTo(sendButtonRef.start)
+                        bottom.linkTo(parent.bottom)
 
-                    width = Dimension.fillToConstraints
+                        width = Dimension.fillToConstraints
+                    },
+                value = textInput,
+                onValueChange = { newValue -> textInput = newValue },
+                placeholder = { Text("Введите сообщение...") }
+            )
+
+            IconButton(
+                modifier = Modifier.constrainAs(sendButtonRef) {
+                    end.linkTo(parent.end)
+                    top.linkTo(textInputRef.top)
+                    bottom.linkTo(textInputRef.bottom)
                 },
-            value = textInput,
-            onValueChange = { newValue -> textInput = newValue },
-            placeholder = { Text("Введите сообщение...") }
-        )
+                enabled = textInput.isNotBlank() && !uiState.isLoading,
+                onClick = {
+                    onSendMessageButtonClicked(textInput)
+                    textInput = ""
+                },
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.Send,
+                    contentDescription = "Отправить сообщение"
 
-        IconButton(
-            modifier = Modifier.constrainAs(sendButtonRef) {
-                end.linkTo(parent.end)
-                top.linkTo(textInputRef.top)
-                bottom.linkTo(textInputRef.bottom)
-            },
-            enabled = textInput.isNotBlank() && !uiState.isLoading,
-            onClick = {
-                onSendMessage(textInput)
-                textInput = ""
-            },
-        ) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.Send,
-                contentDescription = "Отправить сообщение"
+                )
+            }
 
+            Text(
+                text = "Что сегодня у тебя на уме?",
+                modifier = Modifier
+                    .constrainAs(emptyChatPlaceholderRef) {
+                        top.linkTo(parent.top)
+                        bottom.linkTo(textInputRef.top)
+                        start.linkTo(parent.start)
+                        end.linkTo(parent.end)
+
+                        visibility = if (uiState.items.isEmpty()) {
+                            Visibility.Visible
+                        } else {
+                            Visibility.Gone
+                        }
+                    }
+                    .padding(horizontal = 32.dp),
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
             )
         }
-
-        Text(
-            text = "Что сегодня у тебя на уме?",
-            modifier = Modifier
-                .constrainAs(emptyChatPlaceholderRef) {
-                    top.linkTo(parent.top)
-                    bottom.linkTo(textInputRef.top)
-                    start.linkTo(parent.start)
-                    end.linkTo(parent.end)
-
-                    visibility = if (uiState.items.isEmpty()) {
-                        Visibility.Visible
-                    } else {
-                        Visibility.Gone
-                    }
-                }
-                .padding(horizontal = 32.dp),
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-        )
     }
 }
 
@@ -187,10 +225,10 @@ private fun ChatItem(chatMessage: ChatMessage) {
                 )
                 .padding(horizontal = 12.dp, vertical = 8.dp),
         ) {
-            Text(
+            ChatMessageContent(
                 text = chatMessage.text,
-                style = MaterialTheme.typography.bodyLarge,
-                color = messageTextColor,
+                messageOwner = chatMessage.messageOwner,
+                textColor = messageTextColor,
             )
             Text(
                 text = chatMessage.time,
@@ -208,13 +246,29 @@ private fun ChatItem(chatMessage: ChatMessage) {
 @Composable
 private fun ChatItemPreview() {
     AiAgentTheme {
-        ChatItem(
-            chatMessage = ChatMessage(
-                text = "Привет! Как дела?",
-                time = "14:32",
-                messageOwner = MessageOwner.USER,
-            ),
-        )
+        Column {
+            ChatItem(
+                chatMessage = ChatMessage(
+                    text = "Привет! Как дела?",
+                    time = "14:32",
+                    messageOwner = MessageOwner.USER,
+                ),
+            )
+            ChatItem(
+                chatMessage = ChatMessage(
+                    text = """
+                        Вот пример **Markdown**:
+                        - пункт 1
+                        - пункт 2
+                        ```kotlin
+                        val x = 42
+                        ```
+                    """.trimIndent(),
+                    time = "14:33",
+                    messageOwner = MessageOwner.AI,
+                ),
+            )
+        }
     }
 }
 
@@ -237,7 +291,8 @@ private fun ChatScreenPreview() {
                     ),
                 ),
             ),
-            onSendMessage = {},
+            onSendMessageButtonClicked = {},
+            onOpenChatList = {},
         )
     }
 }
