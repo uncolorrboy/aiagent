@@ -7,8 +7,10 @@ data class ChatCompletionRequest(
     val model: String,
     @SerializedName("messages")
     val messages: List<ChatMessageDto>,
+    @SerializedName("thinking")
+    val thinking: ThinkingDto,
     @SerializedName("stream")
-    val stream: Boolean = false,
+    val stream: Boolean = false
 )
 
 data class ChatMessageDto(
@@ -16,4 +18,9 @@ data class ChatMessageDto(
     val role: String,
     @SerializedName("content")
     val content: String,
+)
+
+data class ThinkingDto(
+    @SerializedName("type")
+    val type: String,
 )

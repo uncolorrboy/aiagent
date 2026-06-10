@@ -11,21 +11,32 @@ import dev.jeziellago.compose.markdowntext.MarkdownText
 internal fun ChatMessageContent(
     text: String,
     messageOwner: MessageOwner,
+    messageKind: MessageKind,
+    attachmentFileName: String?,
     textColor: Color,
 ) {
-    if (messageOwner == MessageOwner.AI) {
-        MarkdownText(
-            markdown = text,
-            style = MaterialTheme.typography.bodyLarge.merge(
-                TextStyle(color = textColor),
-            ),
-            linkColor = MaterialTheme.colorScheme.primary,
-        )
-    } else {
-        Text(
-            text = text,
-            style = MaterialTheme.typography.bodyLarge,
-            color = textColor,
-        )
+    when {
+        messageKind == MessageKind.FILE && !attachmentFileName.isNullOrBlank() -> {
+            FileMessageContent(
+                fileName = attachmentFileName,
+                textColor = textColor,
+            )
+        }
+        messageOwner == MessageOwner.AI -> {
+            MarkdownText(
+                markdown = text,
+                style = MaterialTheme.typography.bodyLarge.merge(
+                    TextStyle(color = textColor),
+                ),
+                linkColor = MaterialTheme.colorScheme.primary,
+            )
+        }
+        else -> {
+            Text(
+                text = truncateUserMessageForDisplay(text),
+                style = MaterialTheme.typography.bodyLarge,
+                color = textColor,
+            )
+        }
     }
 }

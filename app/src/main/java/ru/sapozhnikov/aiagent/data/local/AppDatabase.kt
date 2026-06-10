@@ -9,7 +9,7 @@ import ru.sapozhnikov.aiagent.data.local.entity.MessageEntity
 
 @Database(
     entities = [ConversationEntity::class, MessageEntity::class],
-    version = 1,
+    version = 2,
     exportSchema = false,
 )
 internal abstract class AppDatabase : RoomDatabase() {

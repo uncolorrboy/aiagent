@@ -1,6 +1,10 @@
 package ru.sapozhnikov.aiagent.presentation.chat
 
+import android.content.Intent
+import android.net.Uri
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -24,6 +28,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -50,6 +55,8 @@ import androidx.constraintlayout.compose.Dimension
 import androidx.constraintlayout.compose.Visibility
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import ru.sapozhnikov.aiagent.presentation.formatter.formatChatPrice
+import ru.sapozhnikov.aiagent.presentation.formatter.formatTokenCount
 import ru.sapozhnikov.aiagent.ui.theme.AiAgentTheme
 
 @Composable
@@ -68,6 +75,7 @@ internal fun ChatRoot(onOpenChatList: () -> Unit) {
     ChatScreen(
         uiState = uiState,
         onSendMessageButtonClicked = viewModel::onMessageSent,
+        onTextFileSelected = viewModel::onTextFileSelected,
         onOpenChatList = onOpenChatList,
     )
 }
@@ -77,15 +85,42 @@ internal fun ChatRoot(onOpenChatList: () -> Unit) {
 private fun ChatScreen(
     uiState: ChatScreenUiState,
     onSendMessageButtonClicked: (String) -> Unit,
+    onTextFileSelected: (Uri) -> Unit,
     onOpenChatList: () -> Unit,
 ) {
     val listState = rememberLazyListState()
+    val context = LocalContext.current
+
+    val textFilePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        if (uri != null) {
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                )
+            }
+            onTextFileSelected(uri)
+        }
+    }
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         topBar = {
             TopAppBar(
-                title = { Text("Чат") },
+                title = {
+                    Column {
+                        Text("Чат")
+                        if (uiState.totalTokenCount > 0) {
+                            Text(
+                                text = "Всего: ${formatTokenCount(uiState.totalTokenCount)}, ${formatChatPrice(uiState.chatPrice)}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                },
                 navigationIcon = {
                     IconButton(onClick = onOpenChatList) {
                         Icon(
@@ -109,7 +144,7 @@ private fun ChatScreen(
                         .only(WindowInsetsSides.Bottom),
                 ),
         ) {
-            val (chatRef, textInputRef, sendButtonRef, emptyChatPlaceholderRef) = createRefs()
+            val (chatRef, textInputRef, attachFileButtonRef, sendButtonRef, emptyChatPlaceholderRef) = createRefs()
 
             LazyColumn(
                 state = listState,
@@ -134,7 +169,7 @@ private fun ChatScreen(
                 modifier = Modifier
                     .constrainAs(textInputRef) {
                         start.linkTo(parent.start, 16.dp)
-                        end.linkTo(sendButtonRef.start)
+                        end.linkTo(attachFileButtonRef.start)
                         bottom.linkTo(parent.bottom)
 
                         width = Dimension.fillToConstraints
@@ -143,6 +178,23 @@ private fun ChatScreen(
                 onValueChange = { newValue -> textInput = newValue },
                 placeholder = { Text("Введите сообщение...") }
             )
+
+            IconButton(
+                modifier = Modifier.constrainAs(attachFileButtonRef) {
+                    end.linkTo(sendButtonRef.start)
+                    top.linkTo(textInputRef.top)
+                    bottom.linkTo(textInputRef.bottom)
+                },
+                enabled = !uiState.isLoading,
+                onClick = {
+                    textFilePickerLauncher.launch(SUPPORTED_TEXT_FILE_MIME_TYPES)
+                },
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.AttachFile,
+                    contentDescription = "Отправить текстовый файл",
+                )
+            }
 
             IconButton(
                 modifier = Modifier.constrainAs(sendButtonRef) {
@@ -228,10 +280,12 @@ private fun ChatItem(chatMessage: ChatMessage) {
             ChatMessageContent(
                 text = chatMessage.text,
                 messageOwner = chatMessage.messageOwner,
+                messageKind = chatMessage.kind,
+                attachmentFileName = chatMessage.attachmentFileName,
                 textColor = messageTextColor,
             )
             Text(
-                text = chatMessage.time,
+                text = buildMessageFooter(chatMessage),
                 modifier = Modifier
                     .align(Alignment.End)
                     .padding(top = 4.dp),
@@ -239,6 +293,17 @@ private fun ChatItem(chatMessage: ChatMessage) {
                 color = timeTextColor,
             )
         }
+    }
+}
+
+private fun buildMessageFooter(chatMessage: ChatMessage): String {
+    val cacheHitTokensAppend = " + кэш".takeIf {
+        chatMessage.messageOwner == MessageOwner.USER
+    }.orEmpty()
+    return if (chatMessage.tokenCount != null) {
+        "${chatMessage.time} · ${formatTokenCount(chatMessage.tokenCount)}$cacheHitTokensAppend"
+    } else {
+        chatMessage.time
     }
 }
 
@@ -252,6 +317,7 @@ private fun ChatItemPreview() {
                     text = "Привет! Как дела?",
                     time = "14:32",
                     messageOwner = MessageOwner.USER,
+                    tokenCount = 12,
                 ),
             )
             ChatItem(
@@ -266,6 +332,7 @@ private fun ChatItemPreview() {
                     """.trimIndent(),
                     time = "14:33",
                     messageOwner = MessageOwner.AI,
+                    tokenCount = 48,
                 ),
             )
         }
@@ -278,24 +345,35 @@ private fun ChatScreenPreview() {
     AiAgentTheme {
         ChatScreen(
             uiState = ChatScreenUiState(
+                totalTokenCount = 156,
+                chatPrice = 0.03,
                 items = listOf(
                     ChatMessage(
                         text = "Привет! Чем могу помочь?",
                         time = "14:30",
                         messageOwner = MessageOwner.AI,
+                        tokenCount = 42,
                     ),
                     ChatMessage(
                         text = "Расскажи про ConstraintLayout в Compose",
                         time = "14:31",
                         messageOwner = MessageOwner.USER,
+                        tokenCount = 114,
                     ),
                 ),
             ),
             onSendMessageButtonClicked = {},
+            onTextFileSelected = {},
             onOpenChatList = {},
         )
     }
 }
+
+private val SUPPORTED_TEXT_FILE_MIME_TYPES = arrayOf(
+    "text/plain",
+    "text/markdown",
+    "text/x-markdown",
+)
 
 
 
