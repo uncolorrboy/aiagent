@@ -1,5 +1,6 @@
 package ru.sapozhnikov.aiagent.presentation.chat
 
+import android.net.Uri
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -37,6 +38,20 @@ internal class ChatViewModel @Inject constructor(
                 }
             }
         }
+        viewModelScope.launch {
+            chatHistoryInteractor.observeTotalTokenCount(conversationId).collect { totalTokens ->
+                _uiState.update { state ->
+                    state.copy(totalTokenCount = totalTokens)
+                }
+            }
+        }
+        viewModelScope.launch {
+            chatHistoryInteractor.observeChatCost(conversationId).collect { chatPrice ->
+                _uiState.update { state ->
+                    state.copy(chatPrice = chatPrice)
+                }
+            }
+        }
     }
 
     fun onMessageSent(message: String) {
@@ -52,16 +67,51 @@ internal class ChatViewModel @Inject constructor(
                 )
             }
 
-            val history = chatHistoryInteractor.getMessages(conversationId)
+            val history = chatHistoryInteractor.getMessagesForApi(conversationId)
             chatHistoryInteractor.saveUserMessage(conversationId, trimmedMessage)
 
             aiAgentInteractor.sendMessage(history, trimmedMessage)
                 .onSuccess { response ->
-                    chatHistoryInteractor.saveAiMessage(conversationId, response)
+                    chatHistoryInteractor.saveAiAgentMessage(conversationId, response)
                 }
                 .onFailure { error ->
                     _errorEvents.send(error.toUserMessage())
                 }
+
+            _uiState.update { state ->
+                state.copy(
+                    isLoading = false,
+                    sendButtonState = SendButtonState.DEFAULT,
+                )
+            }
+        }
+    }
+
+    fun onTextFileSelected(uri: Uri) {
+        if (_uiState.value.isLoading) return
+
+        viewModelScope.launch {
+            _uiState.update { state ->
+                state.copy(
+                    isLoading = true,
+                    sendButtonState = SendButtonState.IN_PROCESS,
+                )
+            }
+
+            runCatching {
+                val history = chatHistoryInteractor.getMessagesForApi(conversationId)
+                val savedFileMessage = chatHistoryInteractor.saveUserFileMessage(conversationId, uri)
+
+                aiAgentInteractor.sendMessage(history, savedFileMessage.content)
+                    .onSuccess { response ->
+                        chatHistoryInteractor.saveAiAgentMessage(conversationId, response)
+                    }
+                    .onFailure { error ->
+                        _errorEvents.send(error.toUserMessage())
+                    }
+            }.onFailure { error ->
+                _errorEvents.send(error.toUserMessage())
+            }
 
             _uiState.update { state ->
                 state.copy(

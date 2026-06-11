@@ -15,5 +15,11 @@ internal fun ChatHistoryMessage.toUiModel(): ChatMessage {
             MessageRole.USER -> MessageOwner.USER
             MessageRole.AI -> MessageOwner.AI
         },
+        tokenCount = tokenCount,
+        kind = when (kind) {
+            ru.sapozhnikov.aiagent.domain.model.MessageKind.TEXT -> MessageKind.TEXT
+            ru.sapozhnikov.aiagent.domain.model.MessageKind.FILE -> MessageKind.FILE
+        },
+        attachmentFileName = attachmentFileName,
     )
 }

@@ -23,4 +23,9 @@ internal data class MessageEntity(
     val text: String,
     val role: String,
     val timestamp: Long,
+    val cacheHitTokens: Int? = null,
+    val tokenCount: Int? = null,
+    val kind: String = "TEXT",
+    val attachmentUri: String? = null,
+    val attachmentFileName: String? = null,
 )

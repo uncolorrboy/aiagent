@@ -1,5 +1,6 @@
 package ru.sapozhnikov.aiagent.domain.interactor
 
+import ru.sapozhnikov.aiagent.domain.model.AiAgentMessage
 import ru.sapozhnikov.aiagent.domain.model.ChatHistoryMessage
 import ru.sapozhnikov.aiagent.domain.model.MessageRole
 import ru.sapozhnikov.aiagent.domain.repository.AiAgentRepository
@@ -12,7 +13,7 @@ internal class AiAgentInteractor @Inject constructor(
     suspend fun sendMessage(
         history: List<ChatHistoryMessage>,
         userMessage: String,
-    ): Result<String> {
+    ): Result<AiAgentMessage> {
         if (userMessage.isBlank()) {
             return Result.failure(IllegalArgumentException("Сообщение не может быть пустым"))
         }

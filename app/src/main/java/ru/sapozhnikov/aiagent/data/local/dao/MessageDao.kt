@@ -3,6 +3,7 @@ package ru.sapozhnikov.aiagent.data.local.dao
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.Query
+import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 import ru.sapozhnikov.aiagent.data.local.entity.MessageEntity
 
@@ -20,4 +21,13 @@ internal interface MessageDao {
 
     @Insert
     suspend fun insert(message: MessageEntity)
+
+    @Query(
+        "SELECT * FROM messages WHERE conversationId = :conversationId AND role = 'USER' " +
+            "ORDER BY timestamp DESC LIMIT 1",
+    )
+    suspend fun getLastUserMessage(conversationId: String): MessageEntity?
+
+    @Update
+    suspend fun update(message: MessageEntity)
 }
