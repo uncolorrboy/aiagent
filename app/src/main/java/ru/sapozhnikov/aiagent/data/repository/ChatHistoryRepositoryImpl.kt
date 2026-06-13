@@ -21,6 +21,7 @@ import ru.sapozhnikov.aiagent.domain.model.calculateChatCost
 import ru.sapozhnikov.aiagent.domain.repository.ChatHistoryRepository
 import javax.inject.Inject
 
+/** Реализация [ChatHistoryRepository] на базе Room и локального хранилища файлов. */
 internal class ChatHistoryRepositoryImpl @Inject constructor(
     private val conversationDao: ConversationDao,
     private val messageDao: MessageDao,

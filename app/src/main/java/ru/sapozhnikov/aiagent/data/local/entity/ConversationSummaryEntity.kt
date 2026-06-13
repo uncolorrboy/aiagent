@@ -5,6 +5,14 @@ import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
+/**
+ * Room-сущность резюме диалога для сжатия контекста LLM.
+ *
+ * @property conversationId идентификатор диалога (первичный ключ)
+ * @property text текст резюме
+ * @property coversUpToMessageId id последнего сообщения, включённого в резюме
+ * @property updatedAt время последнего обновления (мс)
+ */
 @Entity(
     tableName = "conversation_summaries",
     foreignKeys = [

@@ -59,6 +59,12 @@ import ru.sapozhnikov.aiagent.presentation.formatter.formatChatPrice
 import ru.sapozhnikov.aiagent.presentation.formatter.formatTokenCount
 import ru.sapozhnikov.aiagent.ui.theme.AiAgentTheme
 
+/**
+ * Точка входа экрана чата: связывает [ChatViewModel] с [ChatScreen]
+ * и отображает ошибки через Toast.
+ *
+ * @param onOpenChatList колбэк перехода к списку чатов
+ */
 @Composable
 internal fun ChatRoot(onOpenChatList: () -> Unit) {
     val viewModel: ChatViewModel = hiltViewModel()
@@ -80,6 +86,7 @@ internal fun ChatRoot(onOpenChatList: () -> Unit) {
     )
 }
 
+/** Основной экран чата с лентой сообщений, полем ввода и прикреплением файлов. */
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
 private fun ChatScreen(
@@ -239,6 +246,7 @@ private fun ChatScreen(
     }
 }
 
+/** Элемент ленты: пузырь сообщения с содержимым, временем и числом токенов. */
 @Composable
 private fun ChatItem(chatMessage: ChatMessage) {
     val isUserMessage = chatMessage.messageOwner == MessageOwner.USER
@@ -296,6 +304,7 @@ private fun ChatItem(chatMessage: ChatMessage) {
     }
 }
 
+/** Формирует подпись под сообщением: время и количество токенов. */
 private fun buildMessageFooter(chatMessage: ChatMessage): String {
     val cacheHitTokensAppend = " + кэш".takeIf {
         chatMessage.messageOwner == MessageOwner.USER

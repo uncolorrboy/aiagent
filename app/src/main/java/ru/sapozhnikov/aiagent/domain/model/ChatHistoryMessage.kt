@@ -1,5 +1,19 @@
 package ru.sapozhnikov.aiagent.domain.model
 
+/**
+ * Сообщение в истории чата.
+ *
+ * @property id идентификатор записи в БД
+ * @property conversationId идентификатор диалога
+ * @property text текст сообщения (для файловых — может быть пустым в UI)
+ * @property role роль отправителя
+ * @property timestamp время создания (мс)
+ * @property cacheHitTokens токены промпта из кэша (только для пользовательских сообщений)
+ * @property tokenCount число токенов сообщения
+ * @property kind тип сообщения — текст или файл
+ * @property attachmentUri URI сохранённого файла-вложения
+ * @property attachmentFileName отображаемое имя прикреплённого файла
+ */
 internal data class ChatHistoryMessage(
     val id: Long,
     val conversationId: String,
@@ -13,9 +27,15 @@ internal data class ChatHistoryMessage(
     val attachmentFileName: String? = null,
 )
 
+/** Роль участника диалога при обмене сообщениями с LLM API. */
 internal enum class MessageRole {
-    USER, AI;
+    /** Сообщение пользователя. */
+    USER,
 
+    /** Ответ ассистента (модели). */
+    AI;
+
+    /** Преобразует роль в строковое значение для API (user / assistant). */
     fun toApiRole(): String = when (this) {
         USER -> "user"
         AI -> "assistant"

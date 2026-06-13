@@ -15,17 +15,34 @@ import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/**
+ * Результат сохранения текстового файла-вложения на диск приложения.
+ *
+ * @property fileName отображаемое имя файла
+ * @property content текстовое содержимое
+ * @property storedUri URI сохранённого файла для записи в БД
+ */
 internal data class PersistedTextAttachment(
     val fileName: String,
     val content: String,
     val storedUri: String,
 )
 
+/**
+ * Сохраняет текстовые файлы-вложения в локальное хранилище приложения
+ * и предоставляет доступ к их содержимому.
+ */
 @Singleton
 internal class PersistedTextAttachmentBuilder @Inject constructor(
     @ApplicationContext private val context: Context,
 ) {
 
+    /**
+     * Копирует текстовый файл из [sourceUri] во внутреннее хранилище
+     * и возвращает метаданные для сохранения в БД.
+     *
+     * @throws IllegalArgumentException если формат не поддерживается или файл пуст
+     */
     suspend fun build(
         conversationId: String,
         sourceUri: Uri,
@@ -57,6 +74,7 @@ internal class PersistedTextAttachmentBuilder @Inject constructor(
         )
     }
 
+    /** Читает текстовое содержимое ранее сохранённого файла-вложения. */
     suspend fun readStoredContent(storedUri: String): String = withContext(Dispatchers.IO) {
         val file = storedUri.toStoredFile()
         if (!file.exists()) {
@@ -65,6 +83,7 @@ internal class PersistedTextAttachmentBuilder @Inject constructor(
         file.readText()
     }
 
+    /** Удаляет все файлы-вложения указанного диалога. */
     suspend fun deleteConversationAttachments(conversationId: String) = withContext(Dispatchers.IO) {
         File(context.filesDir, "message_attachments/$conversationId").deleteRecursively()
     }

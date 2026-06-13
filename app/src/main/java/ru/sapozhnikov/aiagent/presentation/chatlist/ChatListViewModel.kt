@@ -14,12 +14,18 @@ import java.util.Date
 import java.util.Locale
 import javax.inject.Inject
 
+/**
+ * ViewModel экрана списка чатов.
+ *
+ * @param chatHistoryInteractor use-case для работы с историей чатов
+ */
 @HiltViewModel
 internal class ChatListViewModel @Inject constructor(
     private val chatHistoryInteractor: ChatHistoryInteractor,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ChatListUiState())
+    /** Состояние UI экрана списка чатов. */
     val uiState = _uiState.asStateFlow()
 
     init {
@@ -32,6 +38,11 @@ internal class ChatListViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Удаляет диалог по идентификатору.
+     *
+     * @param conversationId идентификатор удаляемого диалога
+     */
     fun deleteConversation(conversationId: String) {
         viewModelScope.launch {
             chatHistoryInteractor.deleteConversation(conversationId)

@@ -5,6 +5,20 @@ import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
+/**
+ * Room-сущность сообщения в диалоге.
+ *
+ * @property id автоинкрементный идентификатор
+ * @property conversationId идентификатор родительского диалога
+ * @property text текст сообщения
+ * @property role роль отправителя (USER / AI)
+ * @property timestamp время создания (мс)
+ * @property cacheHitTokens токены промпта из кэша
+ * @property tokenCount число токенов сообщения
+ * @property kind тип сообщения (TEXT / FILE)
+ * @property attachmentUri URI сохранённого файла-вложения
+ * @property attachmentFileName отображаемое имя прикреплённого файла
+ */
 @Entity(
     tableName = "messages",
     foreignKeys = [

@@ -5,6 +5,7 @@ import ru.sapozhnikov.aiagent.data.local.SettingsDataStore
 import ru.sapozhnikov.aiagent.domain.repository.SettingsRepository
 import javax.inject.Inject
 
+/** Реализация [SettingsRepository] через [SettingsDataStore]. */
 internal class SettingsRepositoryImpl @Inject constructor(
     private val settingsDataStore: SettingsDataStore,
 ) : SettingsRepository {

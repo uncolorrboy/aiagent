@@ -9,6 +9,9 @@ import dagger.hilt.android.AndroidEntryPoint
 import ru.sapozhnikov.aiagent.navigation.NavigationStack
 import ru.sapozhnikov.aiagent.ui.theme.AiAgentTheme
 
+/**
+ * Точка входа в приложение. Инициализирует Compose-UI и навигационный стек.
+ */
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {

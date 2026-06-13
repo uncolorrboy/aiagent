@@ -15,6 +15,13 @@ import ru.sapozhnikov.aiagent.domain.interactor.AiAgentInteractor
 import ru.sapozhnikov.aiagent.domain.interactor.ChatHistoryInteractor
 import javax.inject.Inject
 
+/**
+ * ViewModel экрана чата: отправка сообщений, файлов и наблюдение за историей.
+ *
+ * @param aiAgentInteractor use-case для отправки сообщений LLM
+ * @param chatHistoryInteractor use-case для работы с историей чатов
+ * @param savedStateHandle аргументы навигации (conversationId)
+ */
 @HiltViewModel
 internal class ChatViewModel @Inject constructor(
     private val aiAgentInteractor: AiAgentInteractor,
@@ -25,9 +32,11 @@ internal class ChatViewModel @Inject constructor(
     private val conversationId: String = checkNotNull(savedStateHandle["conversationId"])
 
     private val _uiState = MutableStateFlow(ChatScreenUiState())
+    /** Состояние UI экрана чата. */
     val uiState = _uiState.asStateFlow()
 
     private val _errorEvents = Channel<String>(Channel.BUFFERED)
+    /** Одноразовые события ошибок для отображения пользователю. */
     val errorEvents = _errorEvents.receiveAsFlow()
 
     init {
@@ -54,6 +63,11 @@ internal class ChatViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Обрабатывает отправку текстового сообщения пользователем.
+     *
+     * @param message текст сообщения
+     */
     fun onMessageSent(message: String) {
         if (message.isBlank() || _uiState.value.isLoading) return
 
@@ -87,6 +101,11 @@ internal class ChatViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Обрабатывает выбор текстового файла для отправки в чат.
+     *
+     * @param uri URI выбранного файла
+     */
     fun onTextFileSelected(uri: Uri) {
         if (_uiState.value.isLoading) return
 

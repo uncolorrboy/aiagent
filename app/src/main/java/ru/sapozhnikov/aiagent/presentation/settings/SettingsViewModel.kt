@@ -10,12 +10,18 @@ import kotlinx.coroutines.launch
 import ru.sapozhnikov.aiagent.domain.interactor.SettingsInteractor
 import javax.inject.Inject
 
+/**
+ * ViewModel экрана настроек.
+ *
+ * @param settingsInteractor use-case для чтения и записи настроек
+ */
 @HiltViewModel
 internal class SettingsViewModel @Inject constructor(
     private val settingsInteractor: SettingsInteractor,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SettingsUiState())
+    /** Состояние UI экрана настроек. */
     val uiState = _uiState.asStateFlow()
 
     init {
@@ -26,6 +32,11 @@ internal class SettingsViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Обрабатывает изменение флага управления контекстом.
+     *
+     * @param enabled включено ли сжатие контекста через резюме
+     */
     fun onContextManagementChanged(enabled: Boolean) {
         viewModelScope.launch {
             settingsInteractor.setContextManagementEnabled(enabled)

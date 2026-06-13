@@ -28,6 +28,11 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ru.sapozhnikov.aiagent.ui.theme.AiAgentTheme
 
+/**
+ * Точка входа экрана настроек: связывает [SettingsViewModel] с UI.
+ *
+ * @param onBack колбэк возврата на предыдущий экран
+ */
 @Composable
 internal fun SettingsRoot(
     onBack: () -> Unit,
@@ -42,6 +47,7 @@ internal fun SettingsRoot(
     )
 }
 
+/** Экран настроек приложения. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SettingsScreen(
@@ -81,6 +87,7 @@ private fun SettingsScreen(
     }
 }
 
+/** Переключатель управления контекстом: сжатие истории через резюме. */
 @Composable
 private fun ContextManagementSetting(
     enabled: Boolean,
