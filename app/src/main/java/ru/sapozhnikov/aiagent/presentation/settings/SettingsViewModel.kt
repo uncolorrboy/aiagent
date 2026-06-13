@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import ru.sapozhnikov.aiagent.domain.interactor.SettingsInteractor
+import ru.sapozhnikov.aiagent.domain.model.ContextManagementStrategy
 import javax.inject.Inject
 
 /**
@@ -26,20 +27,20 @@ internal class SettingsViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            settingsInteractor.observeContextManagementEnabled().collect { enabled ->
-                _uiState.update { it.copy(contextManagementEnabled = enabled) }
+            settingsInteractor.observeContextManagementStrategy().collect { strategy ->
+                _uiState.update { it.copy(contextManagementStrategy = strategy) }
             }
         }
     }
 
     /**
-     * Обрабатывает изменение флага управления контекстом.
+     * Обрабатывает выбор стратегии управления контекстом.
      *
-     * @param enabled включено ли сжатие контекста через резюме
+     * @param strategy новая стратегия
      */
-    fun onContextManagementChanged(enabled: Boolean) {
+    fun onContextManagementStrategyChanged(strategy: ContextManagementStrategy) {
         viewModelScope.launch {
-            settingsInteractor.setContextManagementEnabled(enabled)
+            settingsInteractor.setContextManagementStrategy(strategy)
         }
     }
 }

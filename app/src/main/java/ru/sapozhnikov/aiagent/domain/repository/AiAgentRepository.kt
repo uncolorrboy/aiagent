@@ -28,4 +28,17 @@ internal interface AiAgentRepository {
         messages: List<ChatHistoryMessage>,
         existingSummary: String?,
     ): Result<String>
+
+    /**
+     * Извлекает и обновляет блок фактов (ключ-значение) из диалога.
+     *
+     * @param messages текущая история сообщений
+     * @param newUserMessage последнее сообщение пользователя
+     * @param existingFacts уже сохранённые факты
+     */
+    suspend fun extractFacts(
+        messages: List<ChatHistoryMessage>,
+        newUserMessage: String,
+        existingFacts: Map<String, String>?,
+    ): Result<Map<String, String>>
 }

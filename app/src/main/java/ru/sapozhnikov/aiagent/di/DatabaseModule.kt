@@ -8,7 +8,9 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import ru.sapozhnikov.aiagent.data.local.AppDatabase
+import ru.sapozhnikov.aiagent.data.local.dao.ConversationBranchDao
 import ru.sapozhnikov.aiagent.data.local.dao.ConversationDao
+import ru.sapozhnikov.aiagent.data.local.dao.ConversationFactsDao
 import ru.sapozhnikov.aiagent.data.local.dao.ConversationSummaryDao
 import ru.sapozhnikov.aiagent.data.local.dao.MessageDao
 import javax.inject.Singleton
@@ -42,5 +44,15 @@ internal object DatabaseModule {
     @Provides
     fun provideConversationSummaryDao(database: AppDatabase): ConversationSummaryDao {
         return database.conversationSummaryDao()
+    }
+
+    @Provides
+    fun provideConversationBranchDao(database: AppDatabase): ConversationBranchDao {
+        return database.conversationBranchDao()
+    }
+
+    @Provides
+    fun provideConversationFactsDao(database: AppDatabase): ConversationFactsDao {
+        return database.conversationFactsDao()
     }
 }

@@ -26,6 +26,7 @@ internal fun MessageEntity.toDomain(): ChatHistoryMessage = ChatHistoryMessage(
     kind = kind.toMessageKind(),
     attachmentUri = attachmentUri,
     attachmentFileName = attachmentFileName,
+    branchId = branchId,
 )
 
 /** Преобразует [MessageRole] в строковое значение для Room. */

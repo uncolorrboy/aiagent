@@ -6,6 +6,7 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -24,12 +25,15 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.CallSplit
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -55,6 +59,7 @@ import androidx.constraintlayout.compose.Dimension
 import androidx.constraintlayout.compose.Visibility
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import ru.sapozhnikov.aiagent.domain.model.ContextManagementStrategy
 import ru.sapozhnikov.aiagent.presentation.formatter.formatChatPrice
 import ru.sapozhnikov.aiagent.presentation.formatter.formatTokenCount
 import ru.sapozhnikov.aiagent.ui.theme.AiAgentTheme
@@ -83,6 +88,8 @@ internal fun ChatRoot(onOpenChatList: () -> Unit) {
         onSendMessageButtonClicked = viewModel::onMessageSent,
         onTextFileSelected = viewModel::onTextFileSelected,
         onOpenChatList = onOpenChatList,
+        onCreateCheckpoint = viewModel::onCreateCheckpoint,
+        onBranchSelected = viewModel::onBranchSelected,
     )
 }
 
@@ -94,24 +101,9 @@ private fun ChatScreen(
     onSendMessageButtonClicked: (String) -> Unit,
     onTextFileSelected: (Uri) -> Unit,
     onOpenChatList: () -> Unit,
+    onCreateCheckpoint: () -> Unit,
+    onBranchSelected: (String) -> Unit,
 ) {
-    val listState = rememberLazyListState()
-    val context = LocalContext.current
-
-    val textFilePickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocument(),
-    ) { uri ->
-        if (uri != null) {
-            runCatching {
-                context.contentResolver.takePersistableUriPermission(
-                    uri,
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION,
-                )
-            }
-            onTextFileSelected(uri)
-        }
-    }
-
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         topBar = {
@@ -136,21 +128,103 @@ private fun ChatScreen(
                         )
                     }
                 },
+                actions = {
+                    if (uiState.canCreateCheckpoint) {
+                        IconButton(
+                            enabled = !uiState.isLoading,
+                            onClick = onCreateCheckpoint,
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.CallSplit,
+                                contentDescription = "Создать checkpoint",
+                            )
+                        }
+                    }
+                },
             )
         },
         containerColor = Color.White,
     ) { innerPadding ->
-        ConstraintLayout(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .background(Color.White)
-                .windowInsetsPadding(
-                    WindowInsets.ime
-                        .union(WindowInsets.navigationBars)
-                        .only(WindowInsetsSides.Bottom),
-                ),
+                .background(Color.White),
         ) {
+            if (uiState.contextStrategy == ContextManagementStrategy.BRANCHING &&
+                uiState.branches.isNotEmpty()
+            ) {
+                BranchSelector(
+                    branches = uiState.branches,
+                    onBranchSelected = onBranchSelected,
+                )
+            }
+
+            ChatContent(
+                uiState = uiState,
+                onSendMessageButtonClicked = onSendMessageButtonClicked,
+                onTextFileSelected = onTextFileSelected,
+            )
+        }
+    }
+}
+
+/** Переключатель веток диалога. */
+@Composable
+private fun BranchSelector(
+    branches: List<ChatBranchUi>,
+    onBranchSelected: (String) -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        branches.forEach { branch ->
+            FilterChip(
+                selected = branch.isActive,
+                onClick = { onBranchSelected(branch.id) },
+                label = { Text(branch.name) },
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ChatContent(
+    uiState: ChatScreenUiState,
+    onSendMessageButtonClicked: (String) -> Unit,
+    onTextFileSelected: (Uri) -> Unit,
+) {
+    val listState = rememberLazyListState()
+    val context = LocalContext.current
+
+    val textFilePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        if (uri != null) {
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                )
+            }
+            onTextFileSelected(uri)
+        }
+    }
+
+    ConstraintLayout(
+        modifier = Modifier
+            .fillMaxSize()
+            .windowInsetsPadding(
+                WindowInsets.ime
+                    .union(WindowInsets.navigationBars)
+                    .only(WindowInsetsSides.Bottom),
+            ),
+    ) {
             val (chatRef, textInputRef, attachFileButtonRef, sendButtonRef, emptyChatPlaceholderRef) = createRefs()
 
             LazyColumn(
@@ -242,7 +316,6 @@ private fun ChatScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
             )
-        }
     }
 }
 
@@ -374,6 +447,8 @@ private fun ChatScreenPreview() {
             onSendMessageButtonClicked = {},
             onTextFileSelected = {},
             onOpenChatList = {},
+            onCreateCheckpoint = {},
+            onBranchSelected = {},
         )
     }
 }

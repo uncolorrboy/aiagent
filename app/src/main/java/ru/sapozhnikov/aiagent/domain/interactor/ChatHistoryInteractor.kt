@@ -1,27 +1,35 @@
 package ru.sapozhnikov.aiagent.domain.interactor
 
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flatMapLatest
 import ru.sapozhnikov.aiagent.domain.model.AiAgentMessage
 import ru.sapozhnikov.aiagent.domain.model.ApiConversationContext
 import ru.sapozhnikov.aiagent.domain.model.ChatHistoryMessage
+import ru.sapozhnikov.aiagent.domain.model.ContextManagementStrategy
 import ru.sapozhnikov.aiagent.domain.model.Conversation
 import ru.sapozhnikov.aiagent.domain.model.MessageRole
 import ru.sapozhnikov.aiagent.domain.model.SavedUserFileMessage
 import ru.sapozhnikov.aiagent.domain.repository.ChatHistoryRepository
+import ru.sapozhnikov.aiagent.domain.repository.ConversationBranchRepository
+import ru.sapozhnikov.aiagent.domain.repository.SettingsRepository
 import javax.inject.Inject
 
 /** Use-case для управления историей чатов: сохранение сообщений, наблюдение за диалогами и метриками. */
+@OptIn(ExperimentalCoroutinesApi::class)
 internal class ChatHistoryInteractor @Inject constructor(
     private val repository: ChatHistoryRepository,
     private val conversationContextInteractor: ConversationContextInteractor,
+    private val conversationBranchRepository: ConversationBranchRepository,
+    private val settingsRepository: SettingsRepository,
 ) {
 
     /** Наблюдает за списком диалогов. */
     fun observeConversations(): Flow<List<Conversation>> = repository.observeConversations()
 
-    /** Наблюдает за сообщениями указанного диалога. */
+    /** Наблюдает за сообщениями указанного диалога с учётом стратегии контекста. */
     fun observeMessages(conversationId: String): Flow<List<ChatHistoryMessage>> {
-        return repository.observeMessages(conversationId)
+        return observeMessagesInternal(conversationId)
     }
 
     /** Возвращает контекст диалога, подготовленный для отправки в LLM API. */
@@ -36,10 +44,12 @@ internal class ChatHistoryInteractor @Inject constructor(
     suspend fun saveUserMessage(conversationId: String, text: String) {
         repository.ensureConversationExists(conversationId)
         val isFirstMessage = repository.getMessages(conversationId).isEmpty()
-        repository.saveMessage(conversationId, text, MessageRole.USER)
+        val branchId = resolveActiveBranchId(conversationId)
+        repository.saveMessage(conversationId, text, MessageRole.USER, branchId)
         if (isFirstMessage) {
             repository.updateConversationTitle(conversationId, text.toConversationTitle())
         }
+        conversationContextInteractor.updateFactsIfNeeded(conversationId, text)
     }
 
     /**
@@ -49,21 +59,22 @@ internal class ChatHistoryInteractor @Inject constructor(
     suspend fun saveUserFileMessage(conversationId: String, sourceUri: android.net.Uri): SavedUserFileMessage {
         repository.ensureConversationExists(conversationId)
         val isFirstMessage = repository.getMessages(conversationId).isEmpty()
-        val savedFileMessage = repository.saveUserFileMessage(conversationId, sourceUri)
+        val branchId = resolveActiveBranchId(conversationId)
+        val savedFileMessage = repository.saveUserFileMessage(conversationId, sourceUri, branchId)
         if (isFirstMessage) {
             repository.updateConversationTitle(
                 conversationId,
                 savedFileMessage.fileName.toConversationTitle(),
             )
         }
+        conversationContextInteractor.updateFactsIfNeeded(conversationId, savedFileMessage.content)
         return savedFileMessage
     }
 
-    /**
-     * Сохраняет ответ ассистента и при необходимости запускает обновление резюме контекста.
-     */
+    /** Сохраняет ответ ассистента. */
     suspend fun saveAiAgentMessage(conversationId: String, response: AiAgentMessage) {
-        repository.saveAiAgentMessage(conversationId, response)
+        val branchId = resolveActiveBranchId(conversationId)
+        repository.saveAiAgentMessage(conversationId, response, branchId)
         conversationContextInteractor.updateSummaryIfNeeded(conversationId)
     }
 
@@ -76,6 +87,30 @@ internal class ChatHistoryInteractor @Inject constructor(
     /** Удаляет диалог и все связанные данные. */
     suspend fun deleteConversation(conversationId: String) {
         repository.deleteConversation(conversationId)
+    }
+
+    private fun observeMessagesInternal(conversationId: String): Flow<List<ChatHistoryMessage>> {
+        return settingsRepository.observeContextManagementStrategy().flatMapLatest { strategy ->
+            if (strategy == ContextManagementStrategy.BRANCHING) {
+                conversationBranchRepository.observeBranches(conversationId).flatMapLatest { branches ->
+                    val activeBranch = branches.find { it.isActive }
+                    if (activeBranch != null) {
+                        repository.observeMessagesForBranch(conversationId, activeBranch.id)
+                    } else {
+                        repository.observeMessages(conversationId)
+                    }
+                }
+            } else {
+                repository.observeMessages(conversationId)
+            }
+        }
+    }
+
+    private suspend fun resolveActiveBranchId(conversationId: String): String? {
+        if (settingsRepository.getContextManagementStrategy() != ContextManagementStrategy.BRANCHING) {
+            return null
+        }
+        return conversationBranchRepository.getActiveBranch(conversationId)?.id
     }
 
     private fun String.toConversationTitle(): String {

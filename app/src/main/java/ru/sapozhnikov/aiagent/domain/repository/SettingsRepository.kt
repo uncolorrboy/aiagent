@@ -1,16 +1,17 @@
 package ru.sapozhnikov.aiagent.domain.repository
 
 import kotlinx.coroutines.flow.Flow
+import ru.sapozhnikov.aiagent.domain.model.ContextManagementStrategy
 
 /** Репозиторий пользовательских настроек приложения. */
 internal interface SettingsRepository {
 
-    /** Наблюдает за состоянием флага управления контекстом. */
-    fun observeContextManagementEnabled(): Flow<Boolean>
+    /** Наблюдает за выбранной стратегией управления контекстом. */
+    fun observeContextManagementStrategy(): Flow<ContextManagementStrategy>
 
-    /** Возвращает текущее значение флага управления контекстом. */
-    suspend fun isContextManagementEnabled(): Boolean
+    /** Возвращает текущую стратегию управления контекстом. */
+    suspend fun getContextManagementStrategy(): ContextManagementStrategy
 
-    /** Включает или отключает сжатие контекста через резюме. */
-    suspend fun setContextManagementEnabled(enabled: Boolean)
+    /** Сохраняет выбранную стратегию управления контекстом. */
+    suspend fun setContextManagementStrategy(strategy: ContextManagementStrategy)
 }

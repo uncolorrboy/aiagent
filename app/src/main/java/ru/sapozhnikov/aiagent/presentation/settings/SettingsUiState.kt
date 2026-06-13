@@ -1,10 +1,12 @@
 package ru.sapozhnikov.aiagent.presentation.settings
 
+import ru.sapozhnikov.aiagent.domain.model.ContextManagementStrategy
+
 /**
  * Состояние UI экрана настроек.
  *
- * @property contextManagementEnabled включено ли сжатие контекста через резюме
+ * @property contextManagementStrategy выбранная стратегия управления контекстом
  */
 internal data class SettingsUiState(
-    val contextManagementEnabled: Boolean = false,
+    val contextManagementStrategy: ContextManagementStrategy = ContextManagementStrategy.DEFAULT,
 )

@@ -18,6 +18,7 @@ import androidx.room.PrimaryKey
  * @property kind тип сообщения (TEXT / FILE)
  * @property attachmentUri URI сохранённого файла-вложения
  * @property attachmentFileName отображаемое имя прикреплённого файла
+ * @property branchId идентификатор ветки (null — общая часть до checkpoint)
  */
 @Entity(
     tableName = "messages",
@@ -42,4 +43,5 @@ internal data class MessageEntity(
     val kind: String = "TEXT",
     val attachmentUri: String? = null,
     val attachmentFileName: String? = null,
+    val branchId: String? = null,
 )

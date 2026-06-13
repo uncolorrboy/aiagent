@@ -17,6 +17,9 @@ internal interface ChatHistoryRepository {
     /** Наблюдает за сообщениями указанного диалога. */
     fun observeMessages(conversationId: String): Flow<List<ChatHistoryMessage>>
 
+    /** Наблюдает за сообщениями диалога с учётом активной ветки. */
+    fun observeMessagesForBranch(conversationId: String, activeBranchId: String): Flow<List<ChatHistoryMessage>>
+
     /** Наблюдает за суммарным числом токенов в диалоге (последний запрос). */
     fun observeTotalTokenCount(conversationId: String): Flow<Int>
 
@@ -32,8 +35,18 @@ internal interface ChatHistoryRepository {
      */
     suspend fun getMessagesForApi(conversationId: String): List<ChatHistoryMessage>
 
+    /**
+     * Возвращает сообщения для API с учётом активной ветки.
+     */
+    suspend fun getMessagesForApi(conversationId: String, activeBranchId: String): List<ChatHistoryMessage>
+
     /** Сохраняет текстовое сообщение в историю. */
-    suspend fun saveMessage(conversationId: String, text: String, role: MessageRole)
+    suspend fun saveMessage(
+        conversationId: String,
+        text: String,
+        role: MessageRole,
+        branchId: String? = null,
+    )
 
     /**
      * Сохраняет пользовательское файловое сообщение: копирует файл локально
@@ -41,10 +54,18 @@ internal interface ChatHistoryRepository {
      *
      * @return содержимое файла и имя для отправки в API
      */
-    suspend fun saveUserFileMessage(conversationId: String, sourceUri: Uri): SavedUserFileMessage
+    suspend fun saveUserFileMessage(
+        conversationId: String,
+        sourceUri: Uri,
+        branchId: String? = null,
+    ): SavedUserFileMessage
 
     /** Сохраняет ответ ассистента и обновляет статистику токенов последнего пользовательского сообщения. */
-    suspend fun saveAiAgentMessage(conversationId: String, aiAgentMessage: AiAgentMessage)
+    suspend fun saveAiAgentMessage(
+        conversationId: String,
+        aiAgentMessage: AiAgentMessage,
+        branchId: String? = null,
+    )
 
     /** Создаёт запись диалога, если она ещё не существует. */
     suspend fun ensureConversationExists(conversationId: String)
