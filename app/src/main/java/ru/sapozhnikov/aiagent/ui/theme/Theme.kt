@@ -1,6 +1,5 @@
 package ru.sapozhnikov.aiagent.ui.theme
 
-import android.app.Activity
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
@@ -33,6 +32,15 @@ private val LightColorScheme = lightColorScheme(
     */
 )
 
+/**
+ * Корневая тема приложения на базе Material 3.
+ *
+ * На Android 12+ поддерживает динамические цвета системы.
+ *
+ * @param darkTheme использовать тёмную цветовую схему
+ * @param dynamicColor подставлять системные динамические цвета (Android 12+)
+ * @param content содержимое, обёрнутое в [MaterialTheme]
+ */
 @Composable
 fun AiAgentTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),

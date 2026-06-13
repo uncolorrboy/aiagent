@@ -6,6 +6,14 @@ private const val CACHE_HIT_PRICE_PER_MILLION = 0.0028
 private const val CACHE_MISS_PRICE_PER_MILLION = 0.14
 private const val OUTPUT_PRICE_PER_MILLION = 0.28
 
+/**
+ * Рассчитывает суммарную стоимость диалога по тарифам DeepSeek
+ * на основе сохранённой статистики токенов в сообщениях.
+ *
+ * @param messages список сообщений с заполненными полями [ChatHistoryMessage.tokenCount]
+ *                 и [ChatHistoryMessage.cacheHitTokens]
+ * @return стоимость в USD
+ */
 internal fun calculateChatCost(messages: List<ChatHistoryMessage>): Double {
     return messages.sumOf { message ->
         when (message.role) {

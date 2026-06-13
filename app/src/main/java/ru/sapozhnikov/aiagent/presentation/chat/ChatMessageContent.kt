@@ -7,6 +7,16 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import dev.jeziellago.compose.markdowntext.MarkdownText
 
+/**
+ * Отображает содержимое сообщения в зависимости от типа:
+ * Markdown для ответов AI, имя файла для вложений, обрезанный текст для пользователя.
+ *
+ * @param text текст сообщения
+ * @param messageOwner отправитель — пользователь или ассистент
+ * @param messageKind тип содержимого — текст или файл
+ * @param attachmentFileName имя прикреплённого файла
+ * @param textColor цвет текста в пузыре сообщения
+ */
 @Composable
 internal fun ChatMessageContent(
     text: String,

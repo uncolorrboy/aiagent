@@ -15,6 +15,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
+/**
+ * Отображает файловое сообщение: иконка документа и имя файла.
+ *
+ * @param fileName отображаемое имя файла
+ * @param textColor цвет иконки и текста
+ */
 @Composable
 internal fun FileMessageContent(
     fileName: String,

@@ -6,6 +6,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+/** Преобразует доменное сообщение в UI-модель [ChatMessage]. */
 internal fun ChatHistoryMessage.toUiModel(): ChatMessage {
     val time = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(timestamp))
     return ChatMessage(

@@ -9,6 +9,7 @@ import ru.sapozhnikov.aiagent.data.local.entity.ConversationEntity
 import ru.sapozhnikov.aiagent.data.local.entity.ConversationSummaryEntity
 import ru.sapozhnikov.aiagent.data.local.entity.MessageEntity
 
+/** Локальная Room-база данных приложения. */
 @Database(
     entities = [
         ConversationEntity::class,

@@ -36,6 +36,13 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ru.sapozhnikov.aiagent.ui.theme.AiAgentTheme
 
+/**
+ * Точка входа экрана списка чатов: связывает [ChatListViewModel] с UI.
+ *
+ * @param onConversationClick колбэк открытия существующего диалога
+ * @param onNewChatClick колбэк создания нового диалога
+ * @param onSettingsClick колбэк перехода к экрану настроек
+ */
 @Composable
 internal fun ChatListRoot(
     onConversationClick: (String) -> Unit,
@@ -54,6 +61,7 @@ internal fun ChatListRoot(
     )
 }
 
+/** Экран списка сохранённых диалогов с возможностью создания и удаления. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ChatListScreen(
@@ -132,6 +140,7 @@ private fun ChatListScreen(
     }
 }
 
+/** Элемент списка: заголовок диалога, дата обновления и кнопка удаления. */
 @Composable
 private fun ConversationListItem(
     conversation: ConversationItem,

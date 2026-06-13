@@ -17,21 +17,25 @@ private val Context.settingsDataStore: DataStore<Preferences> by preferencesData
     name = "settings",
 )
 
+/** Хранилище пользовательских настроек на базе DataStore Preferences. */
 @Singleton
 internal class SettingsDataStore @Inject constructor(
     @ApplicationContext private val context: Context,
 ) {
 
+    /** Поток состояния флага управления контекстом. */
     val contextManagementEnabled: Flow<Boolean> = context.settingsDataStore.data.map { preferences ->
         preferences[KEY_CONTEXT_MANAGEMENT_ENABLED] ?: false
     }
 
+    /** Сохраняет значение флага управления контекстом. */
     suspend fun setContextManagementEnabled(enabled: Boolean) {
         context.settingsDataStore.edit { preferences ->
             preferences[KEY_CONTEXT_MANAGEMENT_ENABLED] = enabled
         }
     }
 
+    /** Возвращает текущее значение флага управления контекстом. */
     suspend fun isContextManagementEnabled(): Boolean {
         return context.settingsDataStore.data
             .map { preferences -> preferences[KEY_CONTEXT_MANAGEMENT_ENABLED] ?: false }

@@ -25,6 +25,10 @@ internal class ConversationContextInteractor @Inject constructor(
     private val settingsRepository: SettingsRepository,
 ) {
 
+    /**
+     * Собирает контекст диалога для отправки в LLM API.
+     * При включённом управлении контекстом подставляет резюме и обрезает историю.
+     */
     suspend fun getContextForApi(conversationId: String): ApiConversationContext {
         val allMessages = chatHistoryRepository.getMessagesForApi(conversationId)
 
@@ -35,6 +39,10 @@ internal class ConversationContextInteractor @Inject constructor(
         return buildContextWindow(conversationId, allMessages)
     }
 
+    /**
+     * Проверяет, накопилось ли достаточно несжатых сообщений,
+     * и при необходимости запрашивает обновление резюме у LLM.
+     */
     suspend fun updateSummaryIfNeeded(conversationId: String) {
         if (!settingsRepository.isContextManagementEnabled()) return
 

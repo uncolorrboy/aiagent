@@ -12,6 +12,13 @@ import ru.sapozhnikov.aiagent.presentation.chatlist.ChatListRoot
 import ru.sapozhnikov.aiagent.presentation.settings.SettingsRoot
 import java.util.UUID
 
+/**
+ * Корневой навигационный граф приложения.
+ *
+ * Стартовый экран — список чатов; поддерживаются переходы к чату, настройкам и обратно.
+ *
+ * @param modifier модификатор для [NavHost]
+ */
 @Composable
 internal fun NavigationStack(modifier: Modifier = Modifier) {
     val navController = rememberNavController()

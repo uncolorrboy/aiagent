@@ -4,6 +4,9 @@ import android.app.Application
 import androidx.appcompat.app.AppCompatDelegate
 import dagger.hilt.android.HiltAndroidApp
 
+/**
+ * Класс приложения. Инициализирует Hilt и глобальные настройки темы.
+ */
 @HiltAndroidApp
 class AiAgentApplication : Application() {
 

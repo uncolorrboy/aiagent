@@ -7,6 +7,7 @@ import ru.sapozhnikov.aiagent.domain.model.ConversationSummary
 import ru.sapozhnikov.aiagent.domain.repository.ConversationSummaryRepository
 import javax.inject.Inject
 
+/** Реализация [ConversationSummaryRepository] на базе Room. */
 internal class ConversationSummaryRepositoryImpl @Inject constructor(
     private val conversationSummaryDao: ConversationSummaryDao,
 ) : ConversationSummaryRepository {

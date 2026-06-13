@@ -12,6 +12,7 @@ import ru.sapozhnikov.aiagent.domain.model.TokenUsage
 import ru.sapozhnikov.aiagent.domain.repository.AiAgentRepository
 import javax.inject.Inject
 
+/** Реализация [AiAgentRepository] через DeepSeek Chat Completions API. */
 internal class AiAgentRepositoryImpl @Inject constructor(
     private val api: DeepSeekApi,
 ) : AiAgentRepository {
