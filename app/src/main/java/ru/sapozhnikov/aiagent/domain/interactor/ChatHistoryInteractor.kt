@@ -2,6 +2,7 @@ package ru.sapozhnikov.aiagent.domain.interactor
 
 import kotlinx.coroutines.flow.Flow
 import ru.sapozhnikov.aiagent.domain.model.AiAgentMessage
+import ru.sapozhnikov.aiagent.domain.model.ApiConversationContext
 import ru.sapozhnikov.aiagent.domain.model.ChatHistoryMessage
 import ru.sapozhnikov.aiagent.domain.model.Conversation
 import ru.sapozhnikov.aiagent.domain.model.MessageRole
@@ -11,6 +12,7 @@ import javax.inject.Inject
 
 internal class ChatHistoryInteractor @Inject constructor(
     private val repository: ChatHistoryRepository,
+    private val conversationContextInteractor: ConversationContextInteractor,
 ) {
 
     fun observeConversations(): Flow<List<Conversation>> = repository.observeConversations()
@@ -19,12 +21,8 @@ internal class ChatHistoryInteractor @Inject constructor(
         return repository.observeMessages(conversationId)
     }
 
-    suspend fun getMessages(conversationId: String): List<ChatHistoryMessage> {
-        return repository.getMessages(conversationId)
-    }
-
-    suspend fun getMessagesForApi(conversationId: String): List<ChatHistoryMessage> {
-        return repository.getMessagesForApi(conversationId)
+    suspend fun getContextForApi(conversationId: String): ApiConversationContext {
+        return conversationContextInteractor.getContextForApi(conversationId)
     }
 
     suspend fun saveUserMessage(conversationId: String, text: String) {
@@ -51,11 +49,16 @@ internal class ChatHistoryInteractor @Inject constructor(
 
     suspend fun saveAiAgentMessage(conversationId: String, response: AiAgentMessage) {
         repository.saveAiAgentMessage(conversationId, response)
+        conversationContextInteractor.updateSummaryIfNeeded(conversationId)
     }
 
     fun observeTotalTokenCount(conversationId: String) = repository.observeTotalTokenCount(conversationId)
 
     fun observeChatCost(conversationId: String) = repository.observeChatCost(conversationId)
+
+    suspend fun deleteConversation(conversationId: String) {
+        repository.deleteConversation(conversationId)
+    }
 
     private fun String.toConversationTitle(): String {
         val trimmed = trim()

@@ -8,8 +8,8 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import ru.sapozhnikov.aiagent.data.local.AppDatabase
-import ru.sapozhnikov.aiagent.data.local.MIGRATION_2_3
 import ru.sapozhnikov.aiagent.data.local.dao.ConversationDao
+import ru.sapozhnikov.aiagent.data.local.dao.ConversationSummaryDao
 import ru.sapozhnikov.aiagent.data.local.dao.MessageDao
 import javax.inject.Singleton
 
@@ -25,8 +25,7 @@ internal object DatabaseModule {
             AppDatabase::class.java,
             "ai_agent.db",
         )
-            .addMigrations(MIGRATION_2_3)
-            .fallbackToDestructiveMigration(false)
+            .fallbackToDestructiveMigration(true)
             .build()
     }
 
@@ -38,5 +37,10 @@ internal object DatabaseModule {
     @Provides
     fun provideMessageDao(database: AppDatabase): MessageDao {
         return database.messageDao()
+    }
+
+    @Provides
+    fun provideConversationSummaryDao(database: AppDatabase): ConversationSummaryDao {
+        return database.conversationSummaryDao()
     }
 }

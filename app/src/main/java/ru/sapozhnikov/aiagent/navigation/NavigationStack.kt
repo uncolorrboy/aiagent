@@ -9,6 +9,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import ru.sapozhnikov.aiagent.presentation.chat.ChatRoot
 import ru.sapozhnikov.aiagent.presentation.chatlist.ChatListRoot
+import ru.sapozhnikov.aiagent.presentation.settings.SettingsRoot
 import java.util.UUID
 
 @Composable
@@ -28,6 +29,15 @@ internal fun NavigationStack(modifier: Modifier = Modifier) {
                 onNewChatClick = {
                     navController.navigate(Screen.Chat.createRoute(UUID.randomUUID().toString()))
                 },
+                onSettingsClick = {
+                    navController.navigate(Screen.Settings.route)
+                },
+            )
+        }
+
+        composable(route = Screen.Settings.route) {
+            SettingsRoot(
+                onBack = { navController.popBackStack() },
             )
         }
 

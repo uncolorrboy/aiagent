@@ -32,6 +32,12 @@ internal class ChatListViewModel @Inject constructor(
         }
     }
 
+    fun deleteConversation(conversationId: String) {
+        viewModelScope.launch {
+            chatHistoryInteractor.deleteConversation(conversationId)
+        }
+    }
+
     private fun Conversation.toItem(): ConversationItem {
         val dateFormat = SimpleDateFormat("d MMM, HH:mm", Locale.forLanguageTag("ru"))
         return ConversationItem(

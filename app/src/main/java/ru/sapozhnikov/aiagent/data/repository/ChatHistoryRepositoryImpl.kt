@@ -158,6 +158,11 @@ internal class ChatHistoryRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun deleteConversation(conversationId: String) {
+        conversationDao.deleteById(conversationId)
+        persistedTextAttachmentBuilder.deleteConversationAttachments(conversationId)
+    }
+
     private suspend fun touchConversation(conversationId: String, timestamp: Long) {
         conversationDao.getById(conversationId)?.let { conversation ->
             conversationDao.update(conversation.copy(updatedAt = timestamp))

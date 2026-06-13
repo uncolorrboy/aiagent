@@ -6,8 +6,12 @@ import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import ru.sapozhnikov.aiagent.data.repository.AiAgentRepositoryImpl
 import ru.sapozhnikov.aiagent.data.repository.ChatHistoryRepositoryImpl
+import ru.sapozhnikov.aiagent.data.repository.ConversationSummaryRepositoryImpl
+import ru.sapozhnikov.aiagent.data.repository.SettingsRepositoryImpl
 import ru.sapozhnikov.aiagent.domain.repository.AiAgentRepository
 import ru.sapozhnikov.aiagent.domain.repository.ChatHistoryRepository
+import ru.sapozhnikov.aiagent.domain.repository.ConversationSummaryRepository
+import ru.sapozhnikov.aiagent.domain.repository.SettingsRepository
 import javax.inject.Singleton
 
 @Module
@@ -25,4 +29,16 @@ internal abstract class RepositoryModule {
     abstract fun bindChatHistoryRepository(
         repository: ChatHistoryRepositoryImpl,
     ): ChatHistoryRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindSettingsRepository(
+        repository: SettingsRepositoryImpl,
+    ): SettingsRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindConversationSummaryRepository(
+        repository: ConversationSummaryRepositoryImpl,
+    ): ConversationSummaryRepository
 }
