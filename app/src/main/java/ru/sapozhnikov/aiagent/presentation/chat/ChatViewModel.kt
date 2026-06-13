@@ -67,10 +67,10 @@ internal class ChatViewModel @Inject constructor(
                 )
             }
 
-            val history = chatHistoryInteractor.getMessagesForApi(conversationId)
+            val context = chatHistoryInteractor.getContextForApi(conversationId)
             chatHistoryInteractor.saveUserMessage(conversationId, trimmedMessage)
 
-            aiAgentInteractor.sendMessage(history, trimmedMessage)
+            aiAgentInteractor.sendMessage(context, trimmedMessage)
                 .onSuccess { response ->
                     chatHistoryInteractor.saveAiAgentMessage(conversationId, response)
                 }
@@ -99,10 +99,10 @@ internal class ChatViewModel @Inject constructor(
             }
 
             runCatching {
-                val history = chatHistoryInteractor.getMessagesForApi(conversationId)
+                val context = chatHistoryInteractor.getContextForApi(conversationId)
                 val savedFileMessage = chatHistoryInteractor.saveUserFileMessage(conversationId, uri)
 
-                aiAgentInteractor.sendMessage(history, savedFileMessage.content)
+                aiAgentInteractor.sendMessage(context, savedFileMessage.content)
                     .onSuccess { response ->
                         chatHistoryInteractor.saveAiAgentMessage(conversationId, response)
                     }

@@ -22,4 +22,7 @@ internal interface ConversationDao {
 
     @Update
     suspend fun update(conversation: ConversationEntity)
+
+    @Query("DELETE FROM conversations WHERE id = :id")
+    suspend fun deleteById(id: String)
 }

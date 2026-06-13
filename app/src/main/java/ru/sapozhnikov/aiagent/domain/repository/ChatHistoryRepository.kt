@@ -31,4 +31,6 @@ internal interface ChatHistoryRepository {
     suspend fun ensureConversationExists(conversationId: String)
 
     suspend fun updateConversationTitle(conversationId: String, title: String)
+
+    suspend fun deleteConversation(conversationId: String)
 }

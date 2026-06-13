@@ -64,4 +64,8 @@ internal class PersistedTextAttachmentBuilder @Inject constructor(
         }
         file.readText()
     }
+
+    suspend fun deleteConversationAttachments(conversationId: String) = withContext(Dispatchers.IO) {
+        File(context.filesDir, "message_attachments/$conversationId").deleteRecursively()
+    }
 }
