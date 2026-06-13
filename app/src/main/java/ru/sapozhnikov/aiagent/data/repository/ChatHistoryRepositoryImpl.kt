@@ -40,6 +40,15 @@ internal class ChatHistoryRepositoryImpl @Inject constructor(
         }
     }
 
+    override fun observeMessagesForBranch(
+        conversationId: String,
+        activeBranchId: String,
+    ): Flow<List<ChatHistoryMessage>> {
+        return messageDao.observeMessagesForBranch(conversationId, activeBranchId).map { messages ->
+            messages.map { it.toDomain() }
+        }
+    }
+
     override suspend fun getMessages(conversationId: String): List<ChatHistoryMessage> {
         return messageDao.getMessages(conversationId).map { it.toDomain() }
     }
@@ -50,10 +59,20 @@ internal class ChatHistoryRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun getMessagesForApi(
+        conversationId: String,
+        activeBranchId: String,
+    ): List<ChatHistoryMessage> {
+        return messageDao.getMessagesForBranch(conversationId, activeBranchId).map { entity ->
+            entity.toDomain().resolveTextForApi()
+        }
+    }
+
     override suspend fun saveMessage(
         conversationId: String,
         text: String,
         role: MessageRole,
+        branchId: String?,
     ) {
         val now = System.currentTimeMillis()
         messageDao.insert(
@@ -62,12 +81,17 @@ internal class ChatHistoryRepositoryImpl @Inject constructor(
                 text = text,
                 role = role.toEntityRole(),
                 timestamp = now,
+                branchId = branchId,
             ),
         )
         touchConversation(conversationId, now)
     }
 
-    override suspend fun saveUserFileMessage(conversationId: String, sourceUri: Uri): SavedUserFileMessage {
+    override suspend fun saveUserFileMessage(
+        conversationId: String,
+        sourceUri: Uri,
+        branchId: String?,
+    ): SavedUserFileMessage {
         val attachment = persistedTextAttachmentBuilder.build(conversationId, sourceUri)
         val now = System.currentTimeMillis()
         messageDao.insert(
@@ -79,6 +103,7 @@ internal class ChatHistoryRepositoryImpl @Inject constructor(
                 kind = MessageKind.FILE.toEntityKind(),
                 attachmentUri = attachment.storedUri,
                 attachmentFileName = attachment.fileName,
+                branchId = branchId,
             ),
         )
         touchConversation(conversationId, now)
@@ -90,15 +115,21 @@ internal class ChatHistoryRepositoryImpl @Inject constructor(
 
     override suspend fun saveAiAgentMessage(
         conversationId: String,
-        aiAgentMessage: AiAgentMessage
+        aiAgentMessage: AiAgentMessage,
+        branchId: String?,
     ) {
         val now = System.currentTimeMillis()
-        messageDao.getLastUserMessage(conversationId)?.let { userMessageEntity ->
+        val lastUserMessage = if (branchId != null) {
+            messageDao.getLastUserMessageForBranch(conversationId, branchId)
+        } else {
+            messageDao.getLastUserMessage(conversationId)
+        }
+        lastUserMessage?.let { userMessageEntity ->
             messageDao.update(
                 userMessageEntity.copy(
                     cacheHitTokens = aiAgentMessage.usage.promptCacheHitTokens,
-                    tokenCount = aiAgentMessage.usage.promptCacheMissTokens
-                )
+                    tokenCount = aiAgentMessage.usage.promptCacheMissTokens,
+                ),
             )
         }
         messageDao.insert(
@@ -108,6 +139,7 @@ internal class ChatHistoryRepositoryImpl @Inject constructor(
                 role = MessageRole.AI.toEntityRole(),
                 timestamp = now,
                 tokenCount = aiAgentMessage.usage.completionTokens,
+                branchId = branchId,
             ),
         )
         touchConversation(conversationId, now)
@@ -153,8 +185,8 @@ internal class ChatHistoryRepositoryImpl @Inject constructor(
             conversationDao.update(
                 conversation.copy(
                     title = title,
-                    updatedAt = System.currentTimeMillis()
-                )
+                    updatedAt = System.currentTimeMillis(),
+                ),
             )
         }
     }

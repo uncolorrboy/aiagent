@@ -1,6 +1,7 @@
 package ru.sapozhnikov.aiagent.domain.interactor
 
 import kotlinx.coroutines.flow.Flow
+import ru.sapozhnikov.aiagent.domain.model.ContextManagementStrategy
 import ru.sapozhnikov.aiagent.domain.repository.SettingsRepository
 import javax.inject.Inject
 
@@ -9,13 +10,13 @@ internal class SettingsInteractor @Inject constructor(
     private val repository: SettingsRepository,
 ) {
 
-    /** Наблюдает за состоянием флага управления контекстом. */
-    fun observeContextManagementEnabled(): Flow<Boolean> {
-        return repository.observeContextManagementEnabled()
+    /** Наблюдает за выбранной стратегией управления контекстом. */
+    fun observeContextManagementStrategy(): Flow<ContextManagementStrategy> {
+        return repository.observeContextManagementStrategy()
     }
 
-    /** Включает или отключает сжатие контекста через резюме. */
-    suspend fun setContextManagementEnabled(enabled: Boolean) {
-        repository.setContextManagementEnabled(enabled)
+    /** Сохраняет выбранную стратегию управления контекстом. */
+    suspend fun setContextManagementStrategy(strategy: ContextManagementStrategy) {
+        repository.setContextManagementStrategy(strategy)
     }
 }

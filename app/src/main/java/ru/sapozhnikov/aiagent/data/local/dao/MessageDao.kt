@@ -15,9 +15,23 @@ internal interface MessageDao {
     @Query("SELECT * FROM messages WHERE conversationId = :conversationId ORDER BY timestamp ASC")
     fun observeMessages(conversationId: String): Flow<List<MessageEntity>>
 
+    /** Наблюдает за сообщениями диалога с учётом активной ветки. */
+    @Query(
+        "SELECT * FROM messages WHERE conversationId = :conversationId " +
+            "AND (branchId IS NULL OR branchId = :activeBranchId) ORDER BY timestamp ASC",
+    )
+    fun observeMessagesForBranch(conversationId: String, activeBranchId: String): Flow<List<MessageEntity>>
+
     /** Возвращает все сообщения диалога. */
     @Query("SELECT * FROM messages WHERE conversationId = :conversationId ORDER BY timestamp ASC")
     suspend fun getMessages(conversationId: String): List<MessageEntity>
+
+    /** Возвращает сообщения диалога с учётом активной ветки. */
+    @Query(
+        "SELECT * FROM messages WHERE conversationId = :conversationId " +
+            "AND (branchId IS NULL OR branchId = :activeBranchId) ORDER BY timestamp ASC",
+    )
+    suspend fun getMessagesForBranch(conversationId: String, activeBranchId: String): List<MessageEntity>
 
     /** Возвращает количество сообщений в диалоге. */
     @Query("SELECT COUNT(*) FROM messages WHERE conversationId = :conversationId")
@@ -33,6 +47,22 @@ internal interface MessageDao {
             "ORDER BY timestamp DESC LIMIT 1",
     )
     suspend fun getLastUserMessage(conversationId: String): MessageEntity?
+
+    /** Возвращает последнее пользовательское сообщение в ветке. */
+    @Query(
+        "SELECT * FROM messages WHERE conversationId = :conversationId AND role = 'USER' " +
+            "AND (branchId IS NULL OR branchId = :activeBranchId) ORDER BY timestamp DESC LIMIT 1",
+    )
+    suspend fun getLastUserMessageForBranch(
+        conversationId: String,
+        activeBranchId: String?,
+    ): MessageEntity?
+
+    /** Возвращает последнее сообщение диалога. */
+    @Query(
+        "SELECT * FROM messages WHERE conversationId = :conversationId ORDER BY timestamp DESC LIMIT 1",
+    )
+    suspend fun getLastMessage(conversationId: String): MessageEntity?
 
     /** Обновляет существующее сообщение. */
     @Update

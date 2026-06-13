@@ -1,5 +1,7 @@
 package ru.sapozhnikov.aiagent.data.repository
 
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import ru.sapozhnikov.aiagent.data.remote.DeepSeekApi
 import ru.sapozhnikov.aiagent.data.remote.dto.ChatCompletionRequest
 import ru.sapozhnikov.aiagent.data.remote.dto.ChatMessageDto
@@ -17,6 +19,9 @@ internal class AiAgentRepositoryImpl @Inject constructor(
     private val api: DeepSeekApi,
 ) : AiAgentRepository {
 
+    private val gson = Gson()
+    private val mapType = object : TypeToken<Map<String, String>>() {}.type
+
     override suspend fun sendMessage(
         context: ApiConversationContext,
         userMessage: String,
@@ -29,6 +34,14 @@ internal class AiAgentRepositoryImpl @Inject constructor(
                         content = CHAT_SYSTEM_PROMPT,
                     ),
                 )
+                context.facts?.takeIf { it.isNotEmpty() }?.let { facts ->
+                    add(
+                        ChatMessageDto(
+                            role = "system",
+                            content = formatFactsBlock(facts),
+                        ),
+                    )
+                }
                 context.summary?.let { summary ->
                     add(
                         ChatMessageDto(
@@ -132,6 +145,83 @@ internal class AiAgentRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun extractFacts(
+        messages: List<ChatHistoryMessage>,
+        newUserMessage: String,
+        existingFacts: Map<String, String>?,
+    ): Result<Map<String, String>> {
+        return try {
+            val conversationText = messages.joinToString(separator = "\n") { message ->
+                val roleLabel = when (message.role) {
+                    MessageRole.USER -> "Пользователь"
+                    MessageRole.AI -> "Ассистент"
+                }
+                "$roleLabel: ${message.text}"
+            }
+            val userContent = buildString {
+                if (!existingFacts.isNullOrEmpty()) {
+                    appendLine("Текущие факты:")
+                    existingFacts.forEach { (key, value) ->
+                        appendLine("$key: $value")
+                    }
+                    appendLine()
+                }
+                appendLine("История диалога:")
+                appendLine(conversationText)
+                appendLine()
+                appendLine("Новое сообщение пользователя:")
+                append(newUserMessage)
+            }
+            val request = ChatCompletionRequest(
+                model = MODEL,
+                messages = listOf(
+                    ChatMessageDto(
+                        role = "system",
+                        content = FACTS_SYSTEM_PROMPT,
+                    ),
+                    ChatMessageDto(
+                        role = "user",
+                        content = userContent,
+                    ),
+                ),
+                thinking = ThinkingDto(type = "disabled"),
+            )
+            val response = api.createChatCompletion(request)
+            val content = response.choices.firstOrNull()?.message?.content
+            if (content.isNullOrBlank()) {
+                Result.failure(IllegalStateException("Пустой ответ при извлечении фактов"))
+            } else {
+                Result.success(parseFactsResponse(content.trim(), existingFacts))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    private fun parseFactsResponse(
+        content: String,
+        existingFacts: Map<String, String>?,
+    ): Map<String, String> {
+        val jsonStart = content.indexOf('{')
+        val jsonEnd = content.lastIndexOf('}')
+        if (jsonStart >= 0 && jsonEnd > jsonStart) {
+            val json = content.substring(jsonStart, jsonEnd + 1)
+            return runCatching {
+                gson.fromJson<Map<String, String>>(json, mapType) ?: emptyMap()
+            }.getOrElse { existingFacts.orEmpty() }
+        }
+        return existingFacts.orEmpty()
+    }
+
+    private fun formatFactsBlock(facts: Map<String, String>): String {
+        return buildString {
+            appendLine("Важные факты из диалога:")
+            facts.forEach { (key, value) ->
+                appendLine("- $key: $value")
+            }
+        }.trim()
+    }
+
     private companion object {
         const val MODEL = "deepseek-v4-flash"
         const val CHAT_SYSTEM_PROMPT =
@@ -139,5 +229,10 @@ internal class AiAgentRepositoryImpl @Inject constructor(
                 "Давай только суть: факты, выводы и конкретные шаги — насколько это возможно."
         const val SUMMARY_SYSTEM_PROMPT =
             "Сожми переданный тебе диалог до 1-2 предложений. По сути, просто коротко опиши суть того, что в этой беседе обсуждали в этих конкретных сообщениях"
+        const val FACTS_SYSTEM_PROMPT =
+            "Извлеки важные факты из диалога: цель, ограничения, предпочтения, решения, договорённости. " +
+                "Верни ТОЛЬКО JSON-объект вида {\"ключ\": \"значение\"}. " +
+                "Обнови существующие факты с учётом нового сообщения. " +
+                "Используй короткие русские ключи. Не добавляй пояснений вне JSON."
     }
 }

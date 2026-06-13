@@ -1,5 +1,7 @@
 package ru.sapozhnikov.aiagent.presentation.chat
 
+import ru.sapozhnikov.aiagent.domain.model.ContextManagementStrategy
+
 /**
  * Состояние UI экрана чата.
  *
@@ -8,6 +10,9 @@ package ru.sapozhnikov.aiagent.presentation.chat
  * @property sendButtonState состояние кнопки отправки
  * @property totalTokenCount суммарное число токенов последнего запроса
  * @property chatPrice расчётная стоимость диалога в USD
+ * @property contextStrategy активная стратегия управления контекстом
+ * @property branches список веток диалога (для Branching)
+ * @property canCreateCheckpoint можно ли создать checkpoint
  */
 internal data class ChatScreenUiState(
     val isLoading: Boolean = false,
@@ -15,6 +20,22 @@ internal data class ChatScreenUiState(
     val sendButtonState: SendButtonState = SendButtonState.DISABLED,
     val totalTokenCount: Int = 0,
     val chatPrice: Double = 0.0,
+    val contextStrategy: ContextManagementStrategy = ContextManagementStrategy.DEFAULT,
+    val branches: List<ChatBranchUi> = emptyList(),
+    val canCreateCheckpoint: Boolean = false,
+)
+
+/**
+ * UI-модель ветки диалога.
+ *
+ * @property id идентификатор ветки
+ * @property name отображаемое имя
+ * @property isActive активна ли ветка
+ */
+internal data class ChatBranchUi(
+    val id: String,
+    val name: String,
+    val isActive: Boolean,
 )
 
 /**

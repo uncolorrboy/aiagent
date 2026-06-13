@@ -3,10 +3,13 @@ package ru.sapozhnikov.aiagent.domain.interactor
 import android.util.Log
 import ru.sapozhnikov.aiagent.domain.model.ApiConversationContext
 import ru.sapozhnikov.aiagent.domain.model.ChatHistoryMessage
+import ru.sapozhnikov.aiagent.domain.model.ContextManagementStrategy
+import ru.sapozhnikov.aiagent.domain.model.ConversationFacts
 import ru.sapozhnikov.aiagent.domain.model.ConversationSummary
-import ru.sapozhnikov.aiagent.domain.model.MessageRole
 import ru.sapozhnikov.aiagent.domain.repository.AiAgentRepository
 import ru.sapozhnikov.aiagent.domain.repository.ChatHistoryRepository
+import ru.sapozhnikov.aiagent.domain.repository.ConversationBranchRepository
+import ru.sapozhnikov.aiagent.domain.repository.ConversationFactsRepository
 import ru.sapozhnikov.aiagent.domain.repository.ConversationSummaryRepository
 import ru.sapozhnikov.aiagent.domain.repository.SettingsRepository
 import javax.inject.Inject
@@ -14,29 +17,65 @@ import javax.inject.Inject
 /**
  * Управляет контекстом, который отправляется в LLM API.
  *
- * Обычные сообщения чата и summary — разные сущности:
- * - сообщения живут в таблице messages и отображаются в UI;
- * - summary живёт в таблице conversation_summaries и подставляется в API только на этапе запроса.
+ * Поддерживает пять режимов:
+ * - [ContextManagementStrategy.DEFAULT] — полная история;
+ * - [ContextManagementStrategy.SUMMARY_COMPRESSION] — резюме + последние 5 сообщений;
+ * - [ContextManagementStrategy.SLIDING_WINDOW] — последние 10 сообщений;
+ * - [ContextManagementStrategy.STICKY_FACTS] — facts + последние 10 сообщений;
+ * - [ContextManagementStrategy.BRANCHING] — общая часть + активная ветка.
  */
 internal class ConversationContextInteractor @Inject constructor(
     private val chatHistoryRepository: ChatHistoryRepository,
     private val conversationSummaryRepository: ConversationSummaryRepository,
+    private val conversationFactsRepository: ConversationFactsRepository,
+    private val conversationBranchRepository: ConversationBranchRepository,
     private val aiAgentRepository: AiAgentRepository,
     private val settingsRepository: SettingsRepository,
 ) {
 
     /**
-     * Собирает контекст диалога для отправки в LLM API.
-     * При включённом управлении контекстом подставляет резюме и обрезает историю.
+     * Собирает контекст диалога для отправки в LLM API
+     * с учётом выбранной стратегии управления контекстом.
      */
     suspend fun getContextForApi(conversationId: String): ApiConversationContext {
-        val allMessages = chatHistoryRepository.getMessagesForApi(conversationId)
+        val strategy = settingsRepository.getContextManagementStrategy()
+        val allMessages = loadMessages(conversationId, strategy)
 
-        if (!settingsRepository.isContextManagementEnabled()) {
-            return ApiConversationContext(summary = null, messages = allMessages)
+        return when (strategy) {
+            ContextManagementStrategy.DEFAULT -> {
+                ApiConversationContext(messages = allMessages)
+            }
+
+            ContextManagementStrategy.SUMMARY_COMPRESSION -> {
+                buildSummaryContextWindow(conversationId, allMessages)
+            }
+
+            ContextManagementStrategy.SLIDING_WINDOW -> {
+                ApiConversationContext(messages = allMessages.takeLast(SLIDING_WINDOW_COUNT))
+            }
+
+            ContextManagementStrategy.STICKY_FACTS -> {
+                val facts = conversationFactsRepository.getFacts(conversationId)?.facts
+                ApiConversationContext(
+                    facts = facts?.takeIf { it.isNotEmpty() },
+                    messages = allMessages.takeLast(SLIDING_WINDOW_COUNT),
+                )
+            }
+
+            ContextManagementStrategy.BRANCHING -> {
+                ApiConversationContext(messages = allMessages)
+            }
+        }.also { context ->
+            Log.d(
+                TAG,
+                buildString {
+                    append("Контекст для API: strategy=$strategy")
+                    append(", messages=${context.messages.size}")
+                    append(", summary=${context.summary != null}")
+                    append(", facts=${context.facts?.size ?: 0}")
+                },
+            )
         }
-
-        return buildContextWindow(conversationId, allMessages)
     }
 
     /**
@@ -44,12 +83,14 @@ internal class ConversationContextInteractor @Inject constructor(
      * и при необходимости запрашивает обновление резюме у LLM.
      */
     suspend fun updateSummaryIfNeeded(conversationId: String) {
-        if (!settingsRepository.isContextManagementEnabled()) return
+        if (settingsRepository.getContextManagementStrategy() != ContextManagementStrategy.SUMMARY_COMPRESSION) {
+            return
+        }
 
         val allMessages = chatHistoryRepository.getMessages(conversationId)
-        if (allMessages.size <= RECENT_MESSAGES_COUNT) return
+        if (allMessages.size <= SUMMARY_RECENT_MESSAGES_COUNT) return
 
-        val messagesBeforeRecent = allMessages.dropLast(RECENT_MESSAGES_COUNT)
+        val messagesBeforeRecent = allMessages.dropLast(SUMMARY_RECENT_MESSAGES_COUNT)
         val existingSummary = conversationSummaryRepository.getSummary(conversationId)
         val lastSummarizedId = existingSummary?.coversUpToMessageId ?: 0L
         val unsummarized = messagesBeforeRecent.filter { it.id > lastSummarizedId }
@@ -63,15 +104,6 @@ internal class ConversationContextInteractor @Inject constructor(
                 appendLine("  conversationId: $conversationId")
                 appendLine("  сообщений к сжатию: ${unsummarized.size}")
                 appendLine("  id сообщений: ${unsummarized.formatMessageIds()}")
-                appendLine("  обновление существующего summary: ${existingSummary != null}")
-                if (existingSummary != null) {
-                    appendLine("  предыдущий coversUpToMessageId: ${existingSummary.coversUpToMessageId}")
-                    appendLine("  предыдущий summary:")
-                    appendLine(existingSummary.text.prependIndent("    "))
-                }
-                append("  исходные сообщения:")
-                appendLine()
-                append(unsummarized.formatForLog().prependIndent("    "))
             },
         )
 
@@ -89,41 +121,65 @@ internal class ConversationContextInteractor @Inject constructor(
 
             Log.i(
                 TAG,
-                buildString {
-                    appendLine("Сжатие завершено")
-                    appendLine("  conversationId: $conversationId")
-                    appendLine("  coversUpToMessageId: ${savedSummary.coversUpToMessageId}")
-                    appendLine("  длина summary: ${newSummaryText.length} символов")
-                    appendLine("  результат summary:")
-                    append(newSummaryText.prependIndent("    "))
-                },
+                "Сжатие завершено: conversationId=$conversationId, " +
+                    "coversUpToMessageId=${savedSummary.coversUpToMessageId}",
             )
         }.onFailure { error ->
             Log.w(
                 TAG,
                 "Сжатие не удалось: conversationId=$conversationId, " +
-                    "сообщений=${unsummarized.size}, ids=${unsummarized.formatMessageIds()}",
+                    "сообщений=${unsummarized.size}",
                 error,
             )
         }
     }
 
-    private suspend fun buildContextWindow(
+    /**
+     * Обновляет блок фактов после сообщения пользователя
+     * (только для стратегии [ContextManagementStrategy.STICKY_FACTS]).
+     */
+    suspend fun updateFactsIfNeeded(conversationId: String, userMessage: String) {
+        if (settingsRepository.getContextManagementStrategy() != ContextManagementStrategy.STICKY_FACTS) {
+            return
+        }
+
+        val allMessages = loadMessages(conversationId, ContextManagementStrategy.DEFAULT)
+        val existingFacts = conversationFactsRepository.getFacts(conversationId)?.facts
+
+        aiAgentRepository.extractFacts(
+            messages = allMessages,
+            newUserMessage = userMessage,
+            existingFacts = existingFacts,
+        ).onSuccess { updatedFacts ->
+            conversationFactsRepository.saveFacts(
+                ConversationFacts(
+                    conversationId = conversationId,
+                    facts = updatedFacts,
+                    updatedAt = System.currentTimeMillis(),
+                ),
+            )
+            Log.i(TAG, "Facts обновлены: conversationId=$conversationId, count=${updatedFacts.size}")
+        }.onFailure { error ->
+            Log.w(TAG, "Не удалось обновить facts: conversationId=$conversationId", error)
+        }
+    }
+
+    private suspend fun buildSummaryContextWindow(
         conversationId: String,
         allMessages: List<ChatHistoryMessage>,
     ): ApiConversationContext {
-        if (allMessages.size <= RECENT_MESSAGES_COUNT) {
-            return ApiConversationContext(summary = null, messages = allMessages)
+        if (allMessages.size <= SUMMARY_RECENT_MESSAGES_COUNT) {
+            return ApiConversationContext(messages = allMessages)
         }
 
         val summary = conversationSummaryRepository.getSummary(conversationId)
-        val recentMessages = allMessages.takeLast(RECENT_MESSAGES_COUNT)
+        val recentMessages = allMessages.takeLast(SUMMARY_RECENT_MESSAGES_COUNT)
 
         if (summary == null) {
-            return ApiConversationContext(summary = null, messages = allMessages)
+            return ApiConversationContext(messages = allMessages)
         }
 
-        val messagesBeforeRecent = allMessages.dropLast(RECENT_MESSAGES_COUNT)
+        val messagesBeforeRecent = allMessages.dropLast(SUMMARY_RECENT_MESSAGES_COUNT)
         val gapMessages = messagesBeforeRecent.filter { message ->
             message.id > summary.coversUpToMessageId
         }
@@ -131,21 +187,22 @@ internal class ConversationContextInteractor @Inject constructor(
         return ApiConversationContext(
             summary = summary,
             messages = gapMessages + recentMessages,
-        ).also { context ->
-            Log.d(
-                TAG,
-                buildString {
-                    appendLine("Контекст для API собран с summary")
-                    appendLine("  conversationId: $conversationId")
-                    appendLine("  всего сообщений в чате: ${allMessages.size}")
-                    appendLine("  summary coversUpToMessageId: ${summary.coversUpToMessageId}")
-                    appendLine("  gap-сообщений: ${gapMessages.size}")
-                    appendLine("  recent-сообщений: ${recentMessages.size}")
-                    appendLine("  в API уйдёт: 1 summary + ${context.messages.size} сообщений")
-                    appendLine("  текст summary:")
-                    append(summary.text.prependIndent("    "))
-                },
-            )
+        )
+    }
+
+    private suspend fun loadMessages(
+        conversationId: String,
+        strategy: ContextManagementStrategy,
+    ): List<ChatHistoryMessage> {
+        return if (strategy == ContextManagementStrategy.BRANCHING) {
+            val activeBranch = conversationBranchRepository.getActiveBranch(conversationId)
+            if (activeBranch != null) {
+                chatHistoryRepository.getMessagesForApi(conversationId, activeBranch.id)
+            } else {
+                chatHistoryRepository.getMessagesForApi(conversationId)
+            }
+        } else {
+            chatHistoryRepository.getMessagesForApi(conversationId)
         }
     }
 
@@ -153,24 +210,10 @@ internal class ConversationContextInteractor @Inject constructor(
         return joinToString(prefix = "[", postfix = "]") { it.id.toString() }
     }
 
-    private fun List<ChatHistoryMessage>.formatForLog(): String {
-        return joinToString(separator = "\n") { message ->
-            val roleLabel = when (message.role) {
-                MessageRole.USER -> "Пользователь"
-                MessageRole.AI -> "Ассистент"
-            }
-            val preview = message.text
-                .replace("\n", " ")
-                .take(MESSAGE_PREVIEW_LENGTH)
-                .let { text -> if (message.text.length > MESSAGE_PREVIEW_LENGTH) "$text…" else text }
-            "#${message.id} $roleLabel: $preview"
-        }
-    }
-
     private companion object {
-        const val TAG = "ContextCompression"
-        const val MESSAGE_PREVIEW_LENGTH = 120
-        const val RECENT_MESSAGES_COUNT = 5
+        const val TAG = "ContextManagement"
+        const val SLIDING_WINDOW_COUNT = 10
+        const val SUMMARY_RECENT_MESSAGES_COUNT = 5
         const val SUMMARY_BATCH_SIZE = 5
     }
 }
