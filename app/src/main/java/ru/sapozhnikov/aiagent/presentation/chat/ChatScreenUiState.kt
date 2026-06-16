@@ -1,6 +1,7 @@
 package ru.sapozhnikov.aiagent.presentation.chat
 
 import ru.sapozhnikov.aiagent.domain.model.ContextManagementStrategy
+import ru.sapozhnikov.aiagent.domain.model.MemoryInstance
 
 /**
  * Состояние UI экрана чата.
@@ -13,6 +14,12 @@ import ru.sapozhnikov.aiagent.domain.model.ContextManagementStrategy
  * @property contextStrategy активная стратегия управления контекстом
  * @property branches список веток диалога (для Branching)
  * @property canCreateCheckpoint можно ли создать checkpoint
+ * @property isMemorySheetVisible открыт ли BottomSheet выбора памяти
+ * @property workingMemoryInstances доступные экземпляры рабочей памяти
+ * @property profileMemoryInstances доступные экземпляры долговременной памяти
+ * @property selectedWorkingMemoryId выбранная рабочая память или null
+ * @property selectedProfileMemoryId выбранный профиль или null
+ * @property isMemorySelectionLocked заблокирован ли выбор памяти (уже сохранён для диалога)
  */
 internal data class ChatScreenUiState(
     val isLoading: Boolean = false,
@@ -23,6 +30,12 @@ internal data class ChatScreenUiState(
     val contextStrategy: ContextManagementStrategy = ContextManagementStrategy.DEFAULT,
     val branches: List<ChatBranchUi> = emptyList(),
     val canCreateCheckpoint: Boolean = false,
+    val isMemorySheetVisible: Boolean = false,
+    val workingMemoryInstances: List<MemoryInstance> = emptyList(),
+    val profileMemoryInstances: List<MemoryInstance> = emptyList(),
+    val selectedWorkingMemoryId: String? = null,
+    val selectedProfileMemoryId: String? = null,
+    val isMemorySelectionLocked: Boolean = false,
 )
 
 /**

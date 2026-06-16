@@ -9,6 +9,7 @@ import ru.sapozhnikov.aiagent.data.remote.dto.ThinkingDto
 import ru.sapozhnikov.aiagent.domain.model.AiAgentMessage
 import ru.sapozhnikov.aiagent.domain.model.ApiConversationContext
 import ru.sapozhnikov.aiagent.domain.model.ChatHistoryMessage
+import ru.sapozhnikov.aiagent.domain.model.MemoryInstance
 import ru.sapozhnikov.aiagent.domain.model.MessageRole
 import ru.sapozhnikov.aiagent.domain.model.TokenUsage
 import ru.sapozhnikov.aiagent.domain.repository.AiAgentRepository
@@ -28,12 +29,22 @@ internal class AiAgentRepositoryImpl @Inject constructor(
     ): Result<AiAgentMessage> {
         return try {
             val requestMessages = buildList {
-                add(
-                    ChatMessageDto(
-                        role = "system",
-                        content = CHAT_SYSTEM_PROMPT,
-                    ),
-                )
+                context.profileMemory?.let { profile ->
+                    add(
+                        ChatMessageDto(
+                            role = "system",
+                            content = formatProfileMemoryBlock(profile),
+                        ),
+                    )
+                }
+                context.workingMemory?.let { working ->
+                    add(
+                        ChatMessageDto(
+                            role = "system",
+                            content = formatWorkingMemoryBlock(working),
+                        ),
+                    )
+                }
                 context.facts?.takeIf { it.isNotEmpty() }?.let { facts ->
                     add(
                         ChatMessageDto(
@@ -222,11 +233,22 @@ internal class AiAgentRepositoryImpl @Inject constructor(
         }.trim()
     }
 
+    private fun formatWorkingMemoryBlock(memory: MemoryInstance): String {
+        return buildString {
+            appendLine("Рабочая память (${memory.name}):")
+            append(memory.text)
+        }.trim()
+    }
+
+    private fun formatProfileMemoryBlock(memory: MemoryInstance): String {
+        return buildString {
+            appendLine("Долговременная память / профиль (${memory.name}):")
+            append(memory.text)
+        }.trim()
+    }
+
     private companion object {
         const val MODEL = "deepseek-v4-flash"
-        const val CHAT_SYSTEM_PROMPT =
-            "Отвечай максимально коротко и чётко, без лишней воды и многословия. " +
-                "Давай только суть: факты, выводы и конкретные шаги — насколько это возможно."
         const val SUMMARY_SYSTEM_PROMPT =
             "Сожми переданный тебе диалог до 1-2 предложений. По сути, просто коротко опиши суть того, что в этой беседе обсуждали в этих конкретных сообщениях"
         const val FACTS_SYSTEM_PROMPT =

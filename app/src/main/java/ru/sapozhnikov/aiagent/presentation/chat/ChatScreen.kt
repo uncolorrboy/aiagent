@@ -32,6 +32,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.CallSplit
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AttachFile
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -90,6 +91,9 @@ internal fun ChatRoot(onOpenChatList: () -> Unit) {
         onOpenChatList = onOpenChatList,
         onCreateCheckpoint = viewModel::onCreateCheckpoint,
         onBranchSelected = viewModel::onBranchSelected,
+        onMemorySettingsClicked = viewModel::onMemorySettingsClicked,
+        onDismissMemorySheet = viewModel::onDismissMemorySheet,
+        onSaveMemorySelection = viewModel::onSaveMemorySelection,
     )
 }
 
@@ -103,7 +107,22 @@ private fun ChatScreen(
     onOpenChatList: () -> Unit,
     onCreateCheckpoint: () -> Unit,
     onBranchSelected: (String) -> Unit,
+    onMemorySettingsClicked: () -> Unit,
+    onDismissMemorySheet: () -> Unit,
+    onSaveMemorySelection: (String?, String?) -> Unit,
 ) {
+    if (uiState.isMemorySheetVisible) {
+        ChatMemoryBottomSheet(
+            workingMemoryInstances = uiState.workingMemoryInstances,
+            profileMemoryInstances = uiState.profileMemoryInstances,
+            selectedWorkingMemoryId = uiState.selectedWorkingMemoryId,
+            selectedProfileMemoryId = uiState.selectedProfileMemoryId,
+            isSelectionLocked = uiState.isMemorySelectionLocked,
+            onDismiss = onDismissMemorySheet,
+            onSave = onSaveMemorySelection,
+        )
+    }
+
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         topBar = {
@@ -129,6 +148,12 @@ private fun ChatScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = onMemorySettingsClicked) {
+                        Icon(
+                            imageVector = Icons.Filled.Settings,
+                            contentDescription = "Настройки памяти",
+                        )
+                    }
                     if (uiState.canCreateCheckpoint) {
                         IconButton(
                             enabled = !uiState.isLoading,
@@ -449,6 +474,9 @@ private fun ChatScreenPreview() {
             onOpenChatList = {},
             onCreateCheckpoint = {},
             onBranchSelected = {},
+            onMemorySettingsClicked = {},
+            onDismissMemorySheet = {},
+            onSaveMemorySelection = { _, _ -> },
         )
     }
 }

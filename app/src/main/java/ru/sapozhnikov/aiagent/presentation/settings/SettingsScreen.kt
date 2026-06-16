@@ -1,15 +1,21 @@
 package ru.sapozhnikov.aiagent.presentation.settings
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -25,21 +31,25 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ru.sapozhnikov.aiagent.domain.model.ContextManagementStrategy
+import ru.sapozhnikov.aiagent.domain.model.MemoryInstance
 import ru.sapozhnikov.aiagent.ui.theme.AiAgentTheme
 
 /**
  * Точка входа экрана настроек: связывает [SettingsViewModel] с UI.
  *
  * @param onBack колбэк возврата на предыдущий экран
+ * @param onOpenMemoryEditor колбэк открытия экрана редактирования памяти
  */
 @Composable
 internal fun SettingsRoot(
     onBack: () -> Unit,
+    onOpenMemoryEditor: (MemoryEditorType, String?) -> Unit,
 ) {
     val viewModel: SettingsViewModel = hiltViewModel()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -48,6 +58,16 @@ internal fun SettingsRoot(
         uiState = uiState,
         onBack = onBack,
         onContextManagementStrategyChanged = viewModel::onContextManagementStrategyChanged,
+        onAddWorkingMemoryClicked = { onOpenMemoryEditor(MemoryEditorType.WORKING, null) },
+        onAddProfileMemoryClicked = { onOpenMemoryEditor(MemoryEditorType.PROFILE, null) },
+        onEditWorkingMemory = { instance ->
+            onOpenMemoryEditor(MemoryEditorType.WORKING, instance.id)
+        },
+        onEditProfileMemory = { instance ->
+            onOpenMemoryEditor(MemoryEditorType.PROFILE, instance.id)
+        },
+        onDeleteWorkingMemory = viewModel::onDeleteWorkingMemory,
+        onDeleteProfileMemory = viewModel::onDeleteProfileMemory,
     )
 }
 
@@ -58,6 +78,12 @@ private fun SettingsScreen(
     uiState: SettingsUiState,
     onBack: () -> Unit,
     onContextManagementStrategyChanged: (ContextManagementStrategy) -> Unit,
+    onAddWorkingMemoryClicked: () -> Unit,
+    onAddProfileMemoryClicked: () -> Unit,
+    onEditWorkingMemory: (MemoryInstance) -> Unit,
+    onEditProfileMemory: (MemoryInstance) -> Unit,
+    onDeleteWorkingMemory: (String) -> Unit,
+    onDeleteProfileMemory: (String) -> Unit,
 ) {
     Scaffold(
         modifier = Modifier
@@ -81,11 +107,30 @@ private fun SettingsScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding),
+                .padding(innerPadding)
+                .verticalScroll(rememberScrollState()),
         ) {
             ContextManagementStrategySetting(
                 selectedStrategy = uiState.contextManagementStrategy,
                 onStrategyChanged = onContextManagementStrategyChanged,
+            )
+
+            MemoryInstancesSection(
+                title = "Рабочая память",
+                description = "Данные текущей задачи. Экземпляры выбираются в чате.",
+                instances = uiState.workingMemoryInstances,
+                onAddClicked = onAddWorkingMemoryClicked,
+                onEditClicked = onEditWorkingMemory,
+                onDeleteClicked = onDeleteWorkingMemory,
+            )
+
+            MemoryInstancesSection(
+                title = "Профиль",
+                description = "Профиль, решения и знания. Экземпляры выбираются в чате.",
+                instances = uiState.profileMemoryInstances,
+                onAddClicked = onAddProfileMemoryClicked,
+                onEditClicked = onEditProfileMemory,
+                onDeleteClicked = onDeleteProfileMemory,
             )
         }
     }
@@ -123,6 +168,105 @@ private fun ContextManagementStrategySetting(
         }
 
         HorizontalDivider(modifier = Modifier.padding(top = 12.dp))
+    }
+}
+
+@Composable
+private fun MemoryInstancesSection(
+    title: String,
+    description: String,
+    instances: List<MemoryInstance>,
+    onAddClicked: () -> Unit,
+    onEditClicked: (MemoryInstance) -> Unit,
+    onDeleteClicked: (String) -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+            )
+            IconButton(onClick = onAddClicked) {
+                Icon(
+                    imageVector = Icons.Filled.Add,
+                    contentDescription = "Добавить",
+                )
+            }
+        }
+        Text(
+            text = description,
+            modifier = Modifier.padding(bottom = 8.dp),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
+        if (instances.isEmpty()) {
+            Text(
+                text = "Нет экземпляров",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        } else {
+            instances.forEach { instance ->
+                MemoryInstanceItem(
+                    instance = instance,
+                    onEditClicked = { onEditClicked(instance) },
+                    onDeleteClicked = { onDeleteClicked(instance.id) },
+                )
+            }
+        }
+
+        HorizontalDivider(modifier = Modifier.padding(top = 12.dp))
+    }
+}
+
+@Composable
+private fun MemoryInstanceItem(
+    instance: MemoryInstance,
+    onEditClicked: () -> Unit,
+    onDeleteClicked: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = instance.name,
+                style = MaterialTheme.typography.bodyLarge,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = instance.text,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        IconButton(onClick = onEditClicked) {
+            Icon(
+                imageVector = Icons.Filled.Edit,
+                contentDescription = "Редактировать",
+            )
+        }
+        IconButton(onClick = onDeleteClicked) {
+            Icon(
+                imageVector = Icons.Filled.Delete,
+                contentDescription = "Удалить",
+            )
+        }
     }
 }
 
@@ -182,9 +326,20 @@ private fun ContextManagementStrategy.toDisplayDescription(): String = when (thi
 private fun SettingsScreenPreview() {
     AiAgentTheme {
         SettingsScreen(
-            uiState = SettingsUiState(contextManagementStrategy = ContextManagementStrategy.SLIDING_WINDOW),
+            uiState = SettingsUiState(
+                contextManagementStrategy = ContextManagementStrategy.SLIDING_WINDOW,
+                workingMemoryInstances = listOf(
+                    MemoryInstance("1", "Задача A", "Описание задачи"),
+                ),
+            ),
             onBack = {},
             onContextManagementStrategyChanged = {},
+            onAddWorkingMemoryClicked = {},
+            onAddProfileMemoryClicked = {},
+            onEditWorkingMemory = {},
+            onEditProfileMemory = {},
+            onDeleteWorkingMemory = {},
+            onDeleteProfileMemory = {},
         )
     }
 }

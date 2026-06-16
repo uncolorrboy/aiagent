@@ -15,8 +15,10 @@ import kotlinx.coroutines.launch
 import ru.sapozhnikov.aiagent.domain.interactor.AiAgentInteractor
 import ru.sapozhnikov.aiagent.domain.interactor.ChatHistoryInteractor
 import ru.sapozhnikov.aiagent.domain.interactor.ConversationBranchInteractor
+import ru.sapozhnikov.aiagent.domain.interactor.MemoryInteractor
 import ru.sapozhnikov.aiagent.domain.interactor.SettingsInteractor
 import ru.sapozhnikov.aiagent.domain.model.ContextManagementStrategy
+import ru.sapozhnikov.aiagent.domain.model.ConversationMemorySelection
 import javax.inject.Inject
 
 /**
@@ -34,6 +36,7 @@ internal class ChatViewModel @Inject constructor(
     private val chatHistoryInteractor: ChatHistoryInteractor,
     private val conversationBranchInteractor: ConversationBranchInteractor,
     private val settingsInteractor: SettingsInteractor,
+    private val memoryInteractor: MemoryInteractor,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -93,6 +96,56 @@ internal class ChatViewModel @Inject constructor(
                     )
                 }
             }
+        }
+        viewModelScope.launch {
+            combine(
+                memoryInteractor.observeWorkingMemoryInstances(),
+                memoryInteractor.observeProfileMemoryInstances(),
+                memoryInteractor.observeConversationMemorySelection(conversationId),
+            ) { working, profile, selection ->
+                Triple(working, profile, selection)
+            }.collect { (working, profile, selection) ->
+                _uiState.update { state ->
+                    state.copy(
+                        workingMemoryInstances = working,
+                        profileMemoryInstances = profile,
+                        selectedWorkingMemoryId = selection?.workingMemoryId,
+                        selectedProfileMemoryId = selection?.profileMemoryId,
+                        isMemorySelectionLocked = selection != null,
+                    )
+                }
+            }
+        }
+    }
+
+    /** Открывает BottomSheet выбора памяти. */
+    fun onMemorySettingsClicked() {
+        _uiState.update { it.copy(isMemorySheetVisible = true) }
+    }
+
+    /** Закрывает BottomSheet выбора памяти. */
+    fun onDismissMemorySheet() {
+        _uiState.update { it.copy(isMemorySheetVisible = false) }
+    }
+
+    /**
+     * Сохраняет выбор памяти для диалога (один раз).
+     *
+     * @param workingMemoryId идентификатор рабочей памяти или null
+     * @param profileMemoryId идентификатор профиля или null
+     */
+    fun onSaveMemorySelection(workingMemoryId: String?, profileMemoryId: String?) {
+        if (_uiState.value.isMemorySelectionLocked) return
+
+        viewModelScope.launch {
+            memoryInteractor.saveConversationMemorySelection(
+                ConversationMemorySelection(
+                    conversationId = conversationId,
+                    workingMemoryId = workingMemoryId,
+                    profileMemoryId = profileMemoryId,
+                ),
+            )
+            _uiState.update { it.copy(isMemorySheetVisible = false) }
         }
     }
 

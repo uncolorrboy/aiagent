@@ -11,8 +11,11 @@ import ru.sapozhnikov.aiagent.data.local.AppDatabase
 import ru.sapozhnikov.aiagent.data.local.dao.ConversationBranchDao
 import ru.sapozhnikov.aiagent.data.local.dao.ConversationDao
 import ru.sapozhnikov.aiagent.data.local.dao.ConversationFactsDao
+import ru.sapozhnikov.aiagent.data.local.dao.ConversationMemoryBindingDao
 import ru.sapozhnikov.aiagent.data.local.dao.ConversationSummaryDao
 import ru.sapozhnikov.aiagent.data.local.dao.MessageDao
+import ru.sapozhnikov.aiagent.data.local.dao.ProfileMemoryDao
+import ru.sapozhnikov.aiagent.data.local.dao.WorkingMemoryDao
 import javax.inject.Singleton
 
 @Module
@@ -54,5 +57,20 @@ internal object DatabaseModule {
     @Provides
     fun provideConversationFactsDao(database: AppDatabase): ConversationFactsDao {
         return database.conversationFactsDao()
+    }
+
+    @Provides
+    fun provideWorkingMemoryDao(database: AppDatabase): WorkingMemoryDao {
+        return database.workingMemoryDao()
+    }
+
+    @Provides
+    fun provideProfileMemoryDao(database: AppDatabase): ProfileMemoryDao {
+        return database.profileMemoryDao()
+    }
+
+    @Provides
+    fun provideConversationMemoryBindingDao(database: AppDatabase): ConversationMemoryBindingDao {
+        return database.conversationMemoryBindingDao()
     }
 }

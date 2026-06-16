@@ -5,13 +5,19 @@ import androidx.room.RoomDatabase
 import ru.sapozhnikov.aiagent.data.local.dao.ConversationBranchDao
 import ru.sapozhnikov.aiagent.data.local.dao.ConversationDao
 import ru.sapozhnikov.aiagent.data.local.dao.ConversationFactsDao
+import ru.sapozhnikov.aiagent.data.local.dao.ConversationMemoryBindingDao
 import ru.sapozhnikov.aiagent.data.local.dao.ConversationSummaryDao
 import ru.sapozhnikov.aiagent.data.local.dao.MessageDao
+import ru.sapozhnikov.aiagent.data.local.dao.ProfileMemoryDao
+import ru.sapozhnikov.aiagent.data.local.dao.WorkingMemoryDao
 import ru.sapozhnikov.aiagent.data.local.entity.ConversationBranchEntity
 import ru.sapozhnikov.aiagent.data.local.entity.ConversationEntity
 import ru.sapozhnikov.aiagent.data.local.entity.ConversationFactsEntity
+import ru.sapozhnikov.aiagent.data.local.entity.ConversationMemoryBindingEntity
 import ru.sapozhnikov.aiagent.data.local.entity.ConversationSummaryEntity
 import ru.sapozhnikov.aiagent.data.local.entity.MessageEntity
+import ru.sapozhnikov.aiagent.data.local.entity.ProfileMemoryEntity
+import ru.sapozhnikov.aiagent.data.local.entity.WorkingMemoryEntity
 
 /** Локальная Room-база данных приложения. */
 @Database(
@@ -21,8 +27,11 @@ import ru.sapozhnikov.aiagent.data.local.entity.MessageEntity
         ConversationSummaryEntity::class,
         ConversationBranchEntity::class,
         ConversationFactsEntity::class,
+        WorkingMemoryEntity::class,
+        ProfileMemoryEntity::class,
+        ConversationMemoryBindingEntity::class,
     ],
-    version = 5,
+    version = 6,
     exportSchema = false,
 )
 internal abstract class AppDatabase : RoomDatabase() {
@@ -36,4 +45,10 @@ internal abstract class AppDatabase : RoomDatabase() {
     abstract fun conversationBranchDao(): ConversationBranchDao
 
     abstract fun conversationFactsDao(): ConversationFactsDao
+
+    abstract fun workingMemoryDao(): WorkingMemoryDao
+
+    abstract fun profileMemoryDao(): ProfileMemoryDao
+
+    abstract fun conversationMemoryBindingDao(): ConversationMemoryBindingDao
 }
