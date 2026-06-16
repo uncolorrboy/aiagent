@@ -9,6 +9,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import ru.sapozhnikov.aiagent.presentation.chat.ChatRoot
 import ru.sapozhnikov.aiagent.presentation.chatlist.ChatListRoot
+import ru.sapozhnikov.aiagent.presentation.settings.MemoryInstanceEditorRoot
 import ru.sapozhnikov.aiagent.presentation.settings.SettingsRoot
 import java.util.UUID
 
@@ -44,6 +45,23 @@ internal fun NavigationStack(modifier: Modifier = Modifier) {
 
         composable(route = Screen.Settings.route) {
             SettingsRoot(
+                onBack = { navController.popBackStack() },
+                onOpenMemoryEditor = { memoryType, instanceId ->
+                    navController.navigate(
+                        Screen.MemoryEditor.createRoute(memoryType.name, instanceId),
+                    )
+                },
+            )
+        }
+
+        composable(
+            route = Screen.MemoryEditor.ROUTE,
+            arguments = listOf(
+                navArgument(Screen.MemoryEditor.MEMORY_TYPE_ARG) { type = NavType.StringType },
+                navArgument(Screen.MemoryEditor.INSTANCE_ID_ARG) { type = NavType.StringType },
+            ),
+        ) {
+            MemoryInstanceEditorRoot(
                 onBack = { navController.popBackStack() },
             )
         }

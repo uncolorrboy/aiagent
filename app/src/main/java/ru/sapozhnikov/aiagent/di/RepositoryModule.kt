@@ -8,14 +8,20 @@ import ru.sapozhnikov.aiagent.data.repository.AiAgentRepositoryImpl
 import ru.sapozhnikov.aiagent.data.repository.ChatHistoryRepositoryImpl
 import ru.sapozhnikov.aiagent.data.repository.ConversationBranchRepositoryImpl
 import ru.sapozhnikov.aiagent.data.repository.ConversationFactsRepositoryImpl
+import ru.sapozhnikov.aiagent.data.repository.ConversationMemoryRepositoryImpl
 import ru.sapozhnikov.aiagent.data.repository.ConversationSummaryRepositoryImpl
+import ru.sapozhnikov.aiagent.data.repository.ProfileMemoryRepositoryImpl
 import ru.sapozhnikov.aiagent.data.repository.SettingsRepositoryImpl
+import ru.sapozhnikov.aiagent.data.repository.WorkingMemoryRepositoryImpl
 import ru.sapozhnikov.aiagent.domain.repository.AiAgentRepository
 import ru.sapozhnikov.aiagent.domain.repository.ChatHistoryRepository
 import ru.sapozhnikov.aiagent.domain.repository.ConversationBranchRepository
 import ru.sapozhnikov.aiagent.domain.repository.ConversationFactsRepository
+import ru.sapozhnikov.aiagent.domain.repository.ConversationMemoryRepository
 import ru.sapozhnikov.aiagent.domain.repository.ConversationSummaryRepository
+import ru.sapozhnikov.aiagent.domain.repository.ProfileMemoryRepository
 import ru.sapozhnikov.aiagent.domain.repository.SettingsRepository
+import ru.sapozhnikov.aiagent.domain.repository.WorkingMemoryRepository
 import javax.inject.Singleton
 
 @Module
@@ -57,4 +63,22 @@ internal abstract class RepositoryModule {
     abstract fun bindConversationFactsRepository(
         repository: ConversationFactsRepositoryImpl,
     ): ConversationFactsRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindWorkingMemoryRepository(
+        repository: WorkingMemoryRepositoryImpl,
+    ): WorkingMemoryRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindProfileMemoryRepository(
+        repository: ProfileMemoryRepositoryImpl,
+    ): ProfileMemoryRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindConversationMemoryRepository(
+        repository: ConversationMemoryRepositoryImpl,
+    ): ConversationMemoryRepository
 }

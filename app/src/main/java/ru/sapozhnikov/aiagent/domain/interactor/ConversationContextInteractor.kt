@@ -10,8 +10,11 @@ import ru.sapozhnikov.aiagent.domain.repository.AiAgentRepository
 import ru.sapozhnikov.aiagent.domain.repository.ChatHistoryRepository
 import ru.sapozhnikov.aiagent.domain.repository.ConversationBranchRepository
 import ru.sapozhnikov.aiagent.domain.repository.ConversationFactsRepository
+import ru.sapozhnikov.aiagent.domain.repository.ConversationMemoryRepository
 import ru.sapozhnikov.aiagent.domain.repository.ConversationSummaryRepository
+import ru.sapozhnikov.aiagent.domain.repository.ProfileMemoryRepository
 import ru.sapozhnikov.aiagent.domain.repository.SettingsRepository
+import ru.sapozhnikov.aiagent.domain.repository.WorkingMemoryRepository
 import javax.inject.Inject
 
 /**
@@ -29,6 +32,9 @@ internal class ConversationContextInteractor @Inject constructor(
     private val conversationSummaryRepository: ConversationSummaryRepository,
     private val conversationFactsRepository: ConversationFactsRepository,
     private val conversationBranchRepository: ConversationBranchRepository,
+    private val conversationMemoryRepository: ConversationMemoryRepository,
+    private val workingMemoryRepository: WorkingMemoryRepository,
+    private val profileMemoryRepository: ProfileMemoryRepository,
     private val aiAgentRepository: AiAgentRepository,
     private val settingsRepository: SettingsRepository,
 ) {
@@ -40,8 +46,11 @@ internal class ConversationContextInteractor @Inject constructor(
     suspend fun getContextForApi(conversationId: String): ApiConversationContext {
         val strategy = settingsRepository.getContextManagementStrategy()
         val allMessages = loadMessages(conversationId, strategy)
+        val memorySelection = conversationMemoryRepository.getSelection(conversationId)
+        val workingMemory = memorySelection?.workingMemoryId?.let { workingMemoryRepository.getById(it) }
+        val profileMemory = memorySelection?.profileMemoryId?.let { profileMemoryRepository.getById(it) }
 
-        return when (strategy) {
+        val context = when (strategy) {
             ContextManagementStrategy.DEFAULT -> {
                 ApiConversationContext(messages = allMessages)
             }
@@ -65,14 +74,21 @@ internal class ConversationContextInteractor @Inject constructor(
             ContextManagementStrategy.BRANCHING -> {
                 ApiConversationContext(messages = allMessages)
             }
-        }.also { context ->
+        }
+
+        return context.copy(
+            workingMemory = workingMemory,
+            profileMemory = profileMemory,
+        ).also { enrichedContext ->
             Log.d(
                 TAG,
                 buildString {
                     append("Контекст для API: strategy=$strategy")
-                    append(", messages=${context.messages.size}")
-                    append(", summary=${context.summary != null}")
-                    append(", facts=${context.facts?.size ?: 0}")
+                    append(", messages=${enrichedContext.messages.size}")
+                    append(", summary=${enrichedContext.summary != null}")
+                    append(", facts=${enrichedContext.facts?.size ?: 0}")
+                    append(", workingMemory=${enrichedContext.workingMemory?.name}")
+                    append(", profileMemory=${enrichedContext.profileMemory?.name}")
                 },
             )
         }
