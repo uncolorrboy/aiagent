@@ -5,7 +5,9 @@ import ru.sapozhnikov.aiagent.domain.model.ApiConversationContext
 import ru.sapozhnikov.aiagent.domain.model.ChatHistoryMessage
 import ru.sapozhnikov.aiagent.domain.model.ContextManagementStrategy
 import ru.sapozhnikov.aiagent.domain.model.ConversationFacts
+import ru.sapozhnikov.aiagent.domain.model.ConversationMode
 import ru.sapozhnikov.aiagent.domain.model.ConversationSummary
+import ru.sapozhnikov.aiagent.domain.model.TaskStagePrompts
 import ru.sapozhnikov.aiagent.domain.repository.AiAgentRepository
 import ru.sapozhnikov.aiagent.domain.repository.ChatHistoryRepository
 import ru.sapozhnikov.aiagent.domain.repository.ConversationBranchRepository
@@ -37,6 +39,7 @@ internal class ConversationContextInteractor @Inject constructor(
     private val profileMemoryRepository: ProfileMemoryRepository,
     private val aiAgentRepository: AiAgentRepository,
     private val settingsRepository: SettingsRepository,
+    private val taskInteractor: TaskInteractor,
 ) {
 
     /**
@@ -44,6 +47,10 @@ internal class ConversationContextInteractor @Inject constructor(
      * с учётом выбранной стратегии управления контекстом.
      */
     suspend fun getContextForApi(conversationId: String): ApiConversationContext {
+        if (chatHistoryRepository.getConversationMode(conversationId) == ConversationMode.TASK) {
+            return getTaskContextForApi(conversationId)
+        }
+
         val strategy = settingsRepository.getContextManagementStrategy()
         val allMessages = loadMessages(conversationId, strategy)
         val memorySelection = conversationMemoryRepository.getSelection(conversationId)
@@ -90,6 +97,37 @@ internal class ConversationContextInteractor @Inject constructor(
                     append(", workingMemory=${enrichedContext.workingMemory?.name}")
                     append(", profileMemory=${enrichedContext.profileMemory?.name}")
                 },
+            )
+        }
+    }
+
+    /**
+     * Собирает контекст для режима «Задача»: сообщения текущего этапа,
+     * системный промпт агента и артефакты предыдущих этапов.
+     */
+    private suspend fun getTaskContextForApi(conversationId: String): ApiConversationContext {
+        val taskState = taskInteractor.getTaskState(conversationId)
+            ?: return ApiConversationContext(messages = emptyList())
+
+        val activeStage = taskState.activeStage
+        val messages = chatHistoryRepository.getMessagesForApiByTaskStage(conversationId, activeStage)
+        val artifacts = taskInteractor.getArtifactsBeforeStage(conversationId, activeStage)
+        val memorySelection = conversationMemoryRepository.getSelection(conversationId)
+        val workingMemory = memorySelection?.workingMemoryId?.let { workingMemoryRepository.getById(it) }
+        val profileMemory = memorySelection?.profileMemoryId?.let { profileMemoryRepository.getById(it) }
+
+        return ApiConversationContext(
+            messages = messages,
+            workingMemory = workingMemory,
+            profileMemory = profileMemory,
+            taskStage = activeStage,
+            taskSystemPrompt = TaskStagePrompts.systemPromptFor(activeStage),
+            taskArtifacts = artifacts,
+        ).also { context ->
+            Log.d(
+                TAG,
+                "Контекст задачи: stage=$activeStage, messages=${context.messages.size}, " +
+                    "artifacts=${context.taskArtifacts.size}",
             )
         }
     }

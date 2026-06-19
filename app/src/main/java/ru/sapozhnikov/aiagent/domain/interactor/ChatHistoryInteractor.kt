@@ -8,8 +8,11 @@ import ru.sapozhnikov.aiagent.domain.model.ApiConversationContext
 import ru.sapozhnikov.aiagent.domain.model.ChatHistoryMessage
 import ru.sapozhnikov.aiagent.domain.model.ContextManagementStrategy
 import ru.sapozhnikov.aiagent.domain.model.Conversation
+import ru.sapozhnikov.aiagent.domain.model.ConversationMode
 import ru.sapozhnikov.aiagent.domain.model.MessageRole
 import ru.sapozhnikov.aiagent.domain.model.SavedUserFileMessage
+import ru.sapozhnikov.aiagent.domain.model.TaskStage
+import ru.sapozhnikov.aiagent.domain.model.TaskStagePrompts
 import ru.sapozhnikov.aiagent.domain.repository.ChatHistoryRepository
 import ru.sapozhnikov.aiagent.domain.repository.ConversationBranchRepository
 import ru.sapozhnikov.aiagent.domain.repository.SettingsRepository
@@ -22,6 +25,7 @@ internal class ChatHistoryInteractor @Inject constructor(
     private val conversationContextInteractor: ConversationContextInteractor,
     private val conversationBranchRepository: ConversationBranchRepository,
     private val settingsRepository: SettingsRepository,
+    private val taskInteractor: TaskInteractor,
 ) {
 
     /** Наблюдает за списком диалогов. */
@@ -30,6 +34,30 @@ internal class ChatHistoryInteractor @Inject constructor(
     /** Наблюдает за сообщениями указанного диалога с учётом стратегии контекста. */
     fun observeMessages(conversationId: String): Flow<List<ChatHistoryMessage>> {
         return observeMessagesInternal(conversationId)
+    }
+
+    /** Наблюдает за сообщениями конкретного этапа задачи. */
+    fun observeMessagesForTaskStage(
+        conversationId: String,
+        taskStage: TaskStage,
+    ): Flow<List<ChatHistoryMessage>> {
+        return repository.observeMessagesForTaskStage(conversationId, taskStage)
+    }
+
+    /** Возвращает режим диалога. */
+    suspend fun getConversationMode(conversationId: String): ConversationMode {
+        return repository.getConversationMode(conversationId)
+    }
+
+    /** Инициализирует диалог в режиме задачи. */
+    suspend fun initializeTaskMode(conversationId: String) {
+        repository.ensureConversationExists(conversationId, ConversationMode.TASK)
+        taskInteractor.initializeTask(conversationId)
+    }
+
+    /** Инициализирует обычный чат. */
+    suspend fun initializeChatMode(conversationId: String) {
+        repository.ensureConversationExists(conversationId, ConversationMode.CHAT)
     }
 
     /** Возвращает контекст диалога, подготовленный для отправки в LLM API. */
@@ -41,41 +69,71 @@ internal class ChatHistoryInteractor @Inject constructor(
      * Сохраняет пользовательское текстовое сообщение.
      * Для первого сообщения автоматически устанавливает заголовок диалога.
      */
-    suspend fun saveUserMessage(conversationId: String, text: String) {
+    suspend fun saveUserMessage(
+        conversationId: String,
+        text: String,
+        taskStage: TaskStage? = null,
+    ) {
         repository.ensureConversationExists(conversationId)
         val isFirstMessage = repository.getMessages(conversationId).isEmpty()
         val branchId = resolveActiveBranchId(conversationId)
-        repository.saveMessage(conversationId, text, MessageRole.USER, branchId)
+        repository.saveMessage(conversationId, text, MessageRole.USER, branchId, taskStage)
         if (isFirstMessage) {
             repository.updateConversationTitle(conversationId, text.toConversationTitle())
         }
-        conversationContextInteractor.updateFactsIfNeeded(conversationId, text)
+        if (repository.getConversationMode(conversationId) != ConversationMode.TASK) {
+            conversationContextInteractor.updateFactsIfNeeded(conversationId, text)
+        }
     }
 
     /**
      * Сохраняет пользовательское файловое сообщение и возвращает его содержимое для API.
      * Для первого сообщения автоматически устанавливает заголовок диалога.
      */
-    suspend fun saveUserFileMessage(conversationId: String, sourceUri: android.net.Uri): SavedUserFileMessage {
+    suspend fun saveUserFileMessage(
+        conversationId: String,
+        sourceUri: android.net.Uri,
+        taskStage: TaskStage? = null,
+    ): SavedUserFileMessage {
         repository.ensureConversationExists(conversationId)
         val isFirstMessage = repository.getMessages(conversationId).isEmpty()
         val branchId = resolveActiveBranchId(conversationId)
-        val savedFileMessage = repository.saveUserFileMessage(conversationId, sourceUri, branchId)
+        val savedFileMessage = repository.saveUserFileMessage(conversationId, sourceUri, branchId, taskStage)
         if (isFirstMessage) {
             repository.updateConversationTitle(
                 conversationId,
                 savedFileMessage.fileName.toConversationTitle(),
             )
         }
-        conversationContextInteractor.updateFactsIfNeeded(conversationId, savedFileMessage.content)
+        if (repository.getConversationMode(conversationId) != ConversationMode.TASK) {
+            conversationContextInteractor.updateFactsIfNeeded(conversationId, savedFileMessage.content)
+        }
         return savedFileMessage
     }
 
     /** Сохраняет ответ ассистента. */
-    suspend fun saveAiAgentMessage(conversationId: String, response: AiAgentMessage) {
+    suspend fun saveAiAgentMessage(
+        conversationId: String,
+        response: AiAgentMessage,
+        taskStage: TaskStage? = null,
+    ) {
         val branchId = resolveActiveBranchId(conversationId)
-        repository.saveAiAgentMessage(conversationId, response, branchId)
-        conversationContextInteractor.updateSummaryIfNeeded(conversationId)
+        val cleanedText = TaskStagePrompts.stripTransitionMarkers(response.text)
+        val cleanedResponse = response.copy(text = cleanedText)
+        repository.saveAiAgentMessage(conversationId, cleanedResponse, branchId, taskStage)
+        if (repository.getConversationMode(conversationId) != ConversationMode.TASK) {
+            conversationContextInteractor.updateSummaryIfNeeded(conversationId)
+        }
+    }
+
+    /** Сохраняет автоматическое сообщение продолжения при переходе на новый этап. */
+    suspend fun saveTaskStageContinuationMessage(
+        conversationId: String,
+        stage: TaskStage,
+    ) {
+        val message = TaskStagePrompts.continuationMessageFor(stage) ?: return
+        val branchId = resolveActiveBranchId(conversationId)
+        repository.saveMessage(conversationId, message, MessageRole.USER, branchId, stage)
     }
 
     /** Наблюдает за суммарным числом токенов в диалоге. */

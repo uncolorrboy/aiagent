@@ -31,11 +31,18 @@ internal fun NavigationStack(modifier: Modifier = Modifier) {
     ) {
         composable(route = Screen.ChatList.route) {
             ChatListRoot(
-                onConversationClick = { conversationId ->
-                    navController.navigate(Screen.Chat.createRoute(conversationId))
+                onConversationClick = { conversationId, isTask ->
+                    if (isTask) {
+                        navController.navigate(Screen.Task.createRoute(conversationId))
+                    } else {
+                        navController.navigate(Screen.Chat.createRoute(conversationId))
+                    }
                 },
                 onNewChatClick = {
                     navController.navigate(Screen.Chat.createRoute(UUID.randomUUID().toString()))
+                },
+                onNewTaskClick = {
+                    navController.navigate(Screen.Task.createRoute(UUID.randomUUID().toString()))
                 },
                 onSettingsClick = {
                     navController.navigate(Screen.Settings.route)
@@ -74,6 +81,18 @@ internal fun NavigationStack(modifier: Modifier = Modifier) {
         ) {
             ChatRoot(
                 onOpenChatList = { navController.popBackStack() },
+            )
+        }
+
+        composable(
+            route = Screen.Task.ROUTE,
+            arguments = listOf(
+                navArgument(Screen.Chat.CONVERSATION_ID_ARG) { type = NavType.StringType },
+            ),
+        ) {
+            ChatRoot(
+                onOpenChatList = { navController.popBackStack() },
+                isTaskMode = true,
             )
         }
     }

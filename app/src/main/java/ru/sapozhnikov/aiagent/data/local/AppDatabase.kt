@@ -9,6 +9,8 @@ import ru.sapozhnikov.aiagent.data.local.dao.ConversationMemoryBindingDao
 import ru.sapozhnikov.aiagent.data.local.dao.ConversationSummaryDao
 import ru.sapozhnikov.aiagent.data.local.dao.MessageDao
 import ru.sapozhnikov.aiagent.data.local.dao.ProfileMemoryDao
+import ru.sapozhnikov.aiagent.data.local.dao.TaskArtifactDao
+import ru.sapozhnikov.aiagent.data.local.dao.TaskStateDao
 import ru.sapozhnikov.aiagent.data.local.dao.WorkingMemoryDao
 import ru.sapozhnikov.aiagent.data.local.entity.ConversationBranchEntity
 import ru.sapozhnikov.aiagent.data.local.entity.ConversationEntity
@@ -17,6 +19,8 @@ import ru.sapozhnikov.aiagent.data.local.entity.ConversationMemoryBindingEntity
 import ru.sapozhnikov.aiagent.data.local.entity.ConversationSummaryEntity
 import ru.sapozhnikov.aiagent.data.local.entity.MessageEntity
 import ru.sapozhnikov.aiagent.data.local.entity.ProfileMemoryEntity
+import ru.sapozhnikov.aiagent.data.local.entity.TaskArtifactEntity
+import ru.sapozhnikov.aiagent.data.local.entity.TaskStateEntity
 import ru.sapozhnikov.aiagent.data.local.entity.WorkingMemoryEntity
 
 /** Локальная Room-база данных приложения. */
@@ -30,8 +34,10 @@ import ru.sapozhnikov.aiagent.data.local.entity.WorkingMemoryEntity
         WorkingMemoryEntity::class,
         ProfileMemoryEntity::class,
         ConversationMemoryBindingEntity::class,
+        TaskStateEntity::class,
+        TaskArtifactEntity::class,
     ],
-    version = 6,
+    version = 7,
     exportSchema = false,
 )
 internal abstract class AppDatabase : RoomDatabase() {
@@ -51,4 +57,8 @@ internal abstract class AppDatabase : RoomDatabase() {
     abstract fun profileMemoryDao(): ProfileMemoryDao
 
     abstract fun conversationMemoryBindingDao(): ConversationMemoryBindingDao
+
+    abstract fun taskStateDao(): TaskStateDao
+
+    abstract fun taskArtifactDao(): TaskArtifactDao
 }

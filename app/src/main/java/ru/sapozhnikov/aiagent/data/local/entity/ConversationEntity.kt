@@ -10,6 +10,7 @@ import androidx.room.PrimaryKey
  * @property title заголовок диалога
  * @property createdAt время создания (мс)
  * @property updatedAt время последнего обновления (мс)
+ * @property mode режим диалога (CHAT / TASK)
  */
 @Entity(tableName = "conversations")
 internal data class ConversationEntity(
@@ -17,4 +18,5 @@ internal data class ConversationEntity(
     val title: String,
     val createdAt: Long,
     val updatedAt: Long,
+    val mode: String = "CHAT",
 )

@@ -11,6 +11,9 @@ package ru.sapozhnikov.aiagent.domain.model
  * @property workingMemory выбранная рабочая память для диалога или null
  * @property profileMemory выбранная долговременная память для диалога или null
  * @property messages сообщения, отправляемые в API (краткосрочная память)
+ * @property taskStage текущий этап задачи (для режима TASK)
+ * @property taskSystemPrompt системный промпт агента этапа
+ * @property taskArtifacts артефакты предыдущих этапов
  */
 internal data class ApiConversationContext(
     val summary: ConversationSummary? = null,
@@ -18,4 +21,7 @@ internal data class ApiConversationContext(
     val workingMemory: MemoryInstance? = null,
     val profileMemory: MemoryInstance? = null,
     val messages: List<ChatHistoryMessage>,
+    val taskStage: TaskStage? = null,
+    val taskSystemPrompt: String? = null,
+    val taskArtifacts: List<TaskArtifact> = emptyList(),
 )

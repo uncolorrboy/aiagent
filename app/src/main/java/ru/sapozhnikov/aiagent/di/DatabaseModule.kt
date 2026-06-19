@@ -15,6 +15,8 @@ import ru.sapozhnikov.aiagent.data.local.dao.ConversationMemoryBindingDao
 import ru.sapozhnikov.aiagent.data.local.dao.ConversationSummaryDao
 import ru.sapozhnikov.aiagent.data.local.dao.MessageDao
 import ru.sapozhnikov.aiagent.data.local.dao.ProfileMemoryDao
+import ru.sapozhnikov.aiagent.data.local.dao.TaskArtifactDao
+import ru.sapozhnikov.aiagent.data.local.dao.TaskStateDao
 import ru.sapozhnikov.aiagent.data.local.dao.WorkingMemoryDao
 import javax.inject.Singleton
 
@@ -72,5 +74,15 @@ internal object DatabaseModule {
     @Provides
     fun provideConversationMemoryBindingDao(database: AppDatabase): ConversationMemoryBindingDao {
         return database.conversationMemoryBindingDao()
+    }
+
+    @Provides
+    fun provideTaskStateDao(database: AppDatabase): TaskStateDao {
+        return database.taskStateDao()
+    }
+
+    @Provides
+    fun provideTaskArtifactDao(database: AppDatabase): TaskArtifactDao {
+        return database.taskArtifactDao()
     }
 }

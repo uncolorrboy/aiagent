@@ -12,6 +12,7 @@ import ru.sapozhnikov.aiagent.data.repository.ConversationMemoryRepositoryImpl
 import ru.sapozhnikov.aiagent.data.repository.ConversationSummaryRepositoryImpl
 import ru.sapozhnikov.aiagent.data.repository.ProfileMemoryRepositoryImpl
 import ru.sapozhnikov.aiagent.data.repository.SettingsRepositoryImpl
+import ru.sapozhnikov.aiagent.data.repository.TaskRepositoryImpl
 import ru.sapozhnikov.aiagent.data.repository.WorkingMemoryRepositoryImpl
 import ru.sapozhnikov.aiagent.domain.repository.AiAgentRepository
 import ru.sapozhnikov.aiagent.domain.repository.ChatHistoryRepository
@@ -21,6 +22,7 @@ import ru.sapozhnikov.aiagent.domain.repository.ConversationMemoryRepository
 import ru.sapozhnikov.aiagent.domain.repository.ConversationSummaryRepository
 import ru.sapozhnikov.aiagent.domain.repository.ProfileMemoryRepository
 import ru.sapozhnikov.aiagent.domain.repository.SettingsRepository
+import ru.sapozhnikov.aiagent.domain.repository.TaskRepository
 import ru.sapozhnikov.aiagent.domain.repository.WorkingMemoryRepository
 import javax.inject.Singleton
 
@@ -81,4 +83,10 @@ internal abstract class RepositoryModule {
     abstract fun bindConversationMemoryRepository(
         repository: ConversationMemoryRepositoryImpl,
     ): ConversationMemoryRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindTaskRepository(
+        repository: TaskRepositoryImpl,
+    ): TaskRepository
 }

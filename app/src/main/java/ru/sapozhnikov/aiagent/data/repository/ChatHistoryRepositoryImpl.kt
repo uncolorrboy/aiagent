@@ -11,12 +11,15 @@ import ru.sapozhnikov.aiagent.data.local.entity.MessageEntity
 import ru.sapozhnikov.aiagent.data.local.mapper.toDomain
 import ru.sapozhnikov.aiagent.data.local.mapper.toEntityKind
 import ru.sapozhnikov.aiagent.data.local.mapper.toEntityRole
+import ru.sapozhnikov.aiagent.data.local.mapper.toEntityStage
 import ru.sapozhnikov.aiagent.domain.model.AiAgentMessage
 import ru.sapozhnikov.aiagent.domain.model.ChatHistoryMessage
 import ru.sapozhnikov.aiagent.domain.model.Conversation
+import ru.sapozhnikov.aiagent.domain.model.ConversationMode
 import ru.sapozhnikov.aiagent.domain.model.MessageKind
 import ru.sapozhnikov.aiagent.domain.model.MessageRole
 import ru.sapozhnikov.aiagent.domain.model.SavedUserFileMessage
+import ru.sapozhnikov.aiagent.domain.model.TaskStage
 import ru.sapozhnikov.aiagent.domain.model.calculateChatCost
 import ru.sapozhnikov.aiagent.domain.repository.ChatHistoryRepository
 import javax.inject.Inject
@@ -36,6 +39,15 @@ internal class ChatHistoryRepositoryImpl @Inject constructor(
 
     override fun observeMessages(conversationId: String): Flow<List<ChatHistoryMessage>> {
         return messageDao.observeMessages(conversationId).map { messages ->
+            messages.map { it.toDomain() }
+        }
+    }
+
+    override fun observeMessagesForTaskStage(
+        conversationId: String,
+        taskStage: TaskStage,
+    ): Flow<List<ChatHistoryMessage>> {
+        return messageDao.observeMessagesForTaskStage(conversationId, taskStage.toEntityStage()).map { messages ->
             messages.map { it.toDomain() }
         }
     }
@@ -68,11 +80,25 @@ internal class ChatHistoryRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun getMessagesForApiByTaskStage(
+        conversationId: String,
+        taskStage: TaskStage,
+    ): List<ChatHistoryMessage> {
+        return messageDao.getMessagesForTaskStage(conversationId, taskStage.toEntityStage()).map { entity ->
+            entity.toDomain().resolveTextForApi()
+        }
+    }
+
+    override suspend fun getConversationMode(conversationId: String): ConversationMode {
+        return conversationDao.getById(conversationId)?.toDomain()?.mode ?: ConversationMode.CHAT
+    }
+
     override suspend fun saveMessage(
         conversationId: String,
         text: String,
         role: MessageRole,
         branchId: String?,
+        taskStage: TaskStage?,
     ) {
         val now = System.currentTimeMillis()
         messageDao.insert(
@@ -82,6 +108,7 @@ internal class ChatHistoryRepositoryImpl @Inject constructor(
                 role = role.toEntityRole(),
                 timestamp = now,
                 branchId = branchId,
+                taskStage = taskStage?.toEntityStage(),
             ),
         )
         touchConversation(conversationId, now)
@@ -91,6 +118,7 @@ internal class ChatHistoryRepositoryImpl @Inject constructor(
         conversationId: String,
         sourceUri: Uri,
         branchId: String?,
+        taskStage: TaskStage?,
     ): SavedUserFileMessage {
         val attachment = persistedTextAttachmentBuilder.build(conversationId, sourceUri)
         val now = System.currentTimeMillis()
@@ -104,6 +132,7 @@ internal class ChatHistoryRepositoryImpl @Inject constructor(
                 attachmentUri = attachment.storedUri,
                 attachmentFileName = attachment.fileName,
                 branchId = branchId,
+                taskStage = taskStage?.toEntityStage(),
             ),
         )
         touchConversation(conversationId, now)
@@ -117,6 +146,7 @@ internal class ChatHistoryRepositoryImpl @Inject constructor(
         conversationId: String,
         aiAgentMessage: AiAgentMessage,
         branchId: String?,
+        taskStage: TaskStage?,
     ) {
         val now = System.currentTimeMillis()
         val lastUserMessage = if (branchId != null) {
@@ -140,6 +170,7 @@ internal class ChatHistoryRepositoryImpl @Inject constructor(
                 timestamp = now,
                 tokenCount = aiAgentMessage.usage.completionTokens,
                 branchId = branchId,
+                taskStage = taskStage?.toEntityStage(),
             ),
         )
         touchConversation(conversationId, now)
@@ -167,15 +198,23 @@ internal class ChatHistoryRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun ensureConversationExists(conversationId: String) {
+    override suspend fun ensureConversationExists(
+        conversationId: String,
+        mode: ConversationMode,
+    ) {
         if (conversationDao.getById(conversationId) != null) return
         val now = System.currentTimeMillis()
+        val title = when (mode) {
+            ConversationMode.CHAT -> DEFAULT_TITLE
+            ConversationMode.TASK -> DEFAULT_TASK_TITLE
+        }
         conversationDao.insert(
             ConversationEntity(
                 id = conversationId,
-                title = DEFAULT_TITLE,
+                title = title,
                 createdAt = now,
                 updatedAt = now,
+                mode = mode.name,
             ),
         )
     }
@@ -209,5 +248,6 @@ internal class ChatHistoryRepositoryImpl @Inject constructor(
 
     private companion object {
         const val DEFAULT_TITLE = "Новый чат"
+        const val DEFAULT_TASK_TITLE = "Новая задача"
     }
 }

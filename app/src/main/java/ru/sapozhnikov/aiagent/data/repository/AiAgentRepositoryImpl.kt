@@ -11,6 +11,7 @@ import ru.sapozhnikov.aiagent.domain.model.ApiConversationContext
 import ru.sapozhnikov.aiagent.domain.model.ChatHistoryMessage
 import ru.sapozhnikov.aiagent.domain.model.MemoryInstance
 import ru.sapozhnikov.aiagent.domain.model.MessageRole
+import ru.sapozhnikov.aiagent.domain.model.TaskStagePrompts
 import ru.sapozhnikov.aiagent.domain.model.TokenUsage
 import ru.sapozhnikov.aiagent.domain.repository.AiAgentRepository
 import javax.inject.Inject
@@ -29,6 +30,20 @@ internal class AiAgentRepositoryImpl @Inject constructor(
     ): Result<AiAgentMessage> {
         return try {
             val requestMessages = buildList {
+                context.taskSystemPrompt?.let { taskPrompt ->
+                    val artifactsBlock = TaskStagePrompts.formatArtifactsBlock(context.taskArtifacts)
+                    val fullPrompt = if (artifactsBlock.isNotBlank()) {
+                        "$taskPrompt\n\n$artifactsBlock"
+                    } else {
+                        taskPrompt
+                    }
+                    add(
+                        ChatMessageDto(
+                            role = "system",
+                            content = fullPrompt,
+                        ),
+                    )
+                }
                 context.profileMemory?.let { profile ->
                     add(
                         ChatMessageDto(
