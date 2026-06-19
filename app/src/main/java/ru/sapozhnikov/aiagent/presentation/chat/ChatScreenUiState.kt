@@ -1,5 +1,6 @@
 package ru.sapozhnikov.aiagent.presentation.chat
 
+import ru.sapozhnikov.aiagent.domain.model.AssistantInvariant
 import ru.sapozhnikov.aiagent.domain.model.ContextManagementStrategy
 import ru.sapozhnikov.aiagent.domain.model.ConversationMode
 import ru.sapozhnikov.aiagent.domain.model.MemoryInstance
@@ -22,6 +23,9 @@ import ru.sapozhnikov.aiagent.domain.model.TaskStage
  * @property selectedWorkingMemoryId выбранная рабочая память или null
  * @property selectedProfileMemoryId выбранный профиль или null
  * @property isMemorySelectionLocked заблокирован ли выбор памяти (уже сохранён для диалога)
+ * @property isInvariantsSheetVisible открыт ли BottomSheet выбора инвариантов
+ * @property availableInvariants доступные инварианты
+ * @property selectedInvariantIds выбранные для диалога инварианты
  * @property mode режим диалога
  * @property isTaskMode активен ли режим задачи
  * @property activeTaskStage текущий активный этап задачи
@@ -43,6 +47,9 @@ internal data class ChatScreenUiState(
     val selectedWorkingMemoryId: String? = null,
     val selectedProfileMemoryId: String? = null,
     val isMemorySelectionLocked: Boolean = false,
+    val isInvariantsSheetVisible: Boolean = false,
+    val availableInvariants: List<AssistantInvariant> = emptyList(),
+    val selectedInvariantIds: Set<String> = emptySet(),
     val mode: ConversationMode = ConversationMode.CHAT,
     val isTaskMode: Boolean = false,
     val activeTaskStage: TaskStage? = null,

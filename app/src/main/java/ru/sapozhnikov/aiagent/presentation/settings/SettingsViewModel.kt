@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import ru.sapozhnikov.aiagent.domain.interactor.InvariantInteractor
 import ru.sapozhnikov.aiagent.domain.interactor.MemoryInteractor
 import ru.sapozhnikov.aiagent.domain.interactor.SettingsInteractor
 import ru.sapozhnikov.aiagent.domain.model.ContextManagementStrategy
@@ -23,6 +24,7 @@ import javax.inject.Inject
 internal class SettingsViewModel @Inject constructor(
     private val settingsInteractor: SettingsInteractor,
     private val memoryInteractor: MemoryInteractor,
+    private val invariantInteractor: InvariantInteractor,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SettingsUiState())
@@ -50,6 +52,11 @@ internal class SettingsViewModel @Inject constructor(
                 }
             }
         }
+        viewModelScope.launch {
+            invariantInteractor.observeAllInvariants().collect { invariants ->
+                _uiState.update { it.copy(invariants = invariants) }
+            }
+        }
     }
 
     /** Обрабатывает выбор стратегии управления контекстом. */
@@ -70,6 +77,12 @@ internal class SettingsViewModel @Inject constructor(
     fun onDeleteProfileMemory(id: String) {
         viewModelScope.launch {
             memoryInteractor.deleteProfileMemoryInstance(id)
+        }
+    }
+
+    fun onDeleteInvariant(id: String) {
+        viewModelScope.launch {
+            invariantInteractor.deleteInvariant(id)
         }
     }
 }

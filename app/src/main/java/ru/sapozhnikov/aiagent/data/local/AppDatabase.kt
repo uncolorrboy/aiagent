@@ -2,9 +2,11 @@ package ru.sapozhnikov.aiagent.data.local
 
 import androidx.room.Database
 import androidx.room.RoomDatabase
+import ru.sapozhnikov.aiagent.data.local.dao.AssistantInvariantDao
 import ru.sapozhnikov.aiagent.data.local.dao.ConversationBranchDao
 import ru.sapozhnikov.aiagent.data.local.dao.ConversationDao
 import ru.sapozhnikov.aiagent.data.local.dao.ConversationFactsDao
+import ru.sapozhnikov.aiagent.data.local.dao.ConversationInvariantBindingDao
 import ru.sapozhnikov.aiagent.data.local.dao.ConversationMemoryBindingDao
 import ru.sapozhnikov.aiagent.data.local.dao.ConversationSummaryDao
 import ru.sapozhnikov.aiagent.data.local.dao.MessageDao
@@ -12,9 +14,11 @@ import ru.sapozhnikov.aiagent.data.local.dao.ProfileMemoryDao
 import ru.sapozhnikov.aiagent.data.local.dao.TaskArtifactDao
 import ru.sapozhnikov.aiagent.data.local.dao.TaskStateDao
 import ru.sapozhnikov.aiagent.data.local.dao.WorkingMemoryDao
+import ru.sapozhnikov.aiagent.data.local.entity.AssistantInvariantEntity
 import ru.sapozhnikov.aiagent.data.local.entity.ConversationBranchEntity
 import ru.sapozhnikov.aiagent.data.local.entity.ConversationEntity
 import ru.sapozhnikov.aiagent.data.local.entity.ConversationFactsEntity
+import ru.sapozhnikov.aiagent.data.local.entity.ConversationInvariantBindingEntity
 import ru.sapozhnikov.aiagent.data.local.entity.ConversationMemoryBindingEntity
 import ru.sapozhnikov.aiagent.data.local.entity.ConversationSummaryEntity
 import ru.sapozhnikov.aiagent.data.local.entity.MessageEntity
@@ -36,8 +40,10 @@ import ru.sapozhnikov.aiagent.data.local.entity.WorkingMemoryEntity
         ConversationMemoryBindingEntity::class,
         TaskStateEntity::class,
         TaskArtifactEntity::class,
+        AssistantInvariantEntity::class,
+        ConversationInvariantBindingEntity::class,
     ],
-    version = 7,
+    version = 9,
     exportSchema = false,
 )
 internal abstract class AppDatabase : RoomDatabase() {
@@ -61,4 +67,8 @@ internal abstract class AppDatabase : RoomDatabase() {
     abstract fun taskStateDao(): TaskStateDao
 
     abstract fun taskArtifactDao(): TaskArtifactDao
+
+    abstract fun assistantInvariantDao(): AssistantInvariantDao
+
+    abstract fun conversationInvariantBindingDao(): ConversationInvariantBindingDao
 }

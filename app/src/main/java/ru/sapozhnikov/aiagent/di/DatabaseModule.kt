@@ -8,9 +8,11 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import ru.sapozhnikov.aiagent.data.local.AppDatabase
+import ru.sapozhnikov.aiagent.data.local.dao.AssistantInvariantDao
 import ru.sapozhnikov.aiagent.data.local.dao.ConversationBranchDao
 import ru.sapozhnikov.aiagent.data.local.dao.ConversationDao
 import ru.sapozhnikov.aiagent.data.local.dao.ConversationFactsDao
+import ru.sapozhnikov.aiagent.data.local.dao.ConversationInvariantBindingDao
 import ru.sapozhnikov.aiagent.data.local.dao.ConversationMemoryBindingDao
 import ru.sapozhnikov.aiagent.data.local.dao.ConversationSummaryDao
 import ru.sapozhnikov.aiagent.data.local.dao.MessageDao
@@ -84,5 +86,15 @@ internal object DatabaseModule {
     @Provides
     fun provideTaskArtifactDao(database: AppDatabase): TaskArtifactDao {
         return database.taskArtifactDao()
+    }
+
+    @Provides
+    fun provideAssistantInvariantDao(database: AppDatabase): AssistantInvariantDao {
+        return database.assistantInvariantDao()
+    }
+
+    @Provides
+    fun provideConversationInvariantBindingDao(database: AppDatabase): ConversationInvariantBindingDao {
+        return database.conversationInvariantBindingDao()
     }
 }

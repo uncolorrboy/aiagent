@@ -18,6 +18,7 @@ import kotlinx.coroutines.launch
 import ru.sapozhnikov.aiagent.domain.interactor.AiAgentInteractor
 import ru.sapozhnikov.aiagent.domain.interactor.ChatHistoryInteractor
 import ru.sapozhnikov.aiagent.domain.interactor.ConversationBranchInteractor
+import ru.sapozhnikov.aiagent.domain.interactor.InvariantInteractor
 import ru.sapozhnikov.aiagent.domain.interactor.MemoryInteractor
 import ru.sapozhnikov.aiagent.domain.interactor.SettingsInteractor
 import ru.sapozhnikov.aiagent.domain.interactor.TaskInteractor
@@ -40,6 +41,7 @@ internal class ChatViewModel @Inject constructor(
     private val conversationBranchInteractor: ConversationBranchInteractor,
     private val settingsInteractor: SettingsInteractor,
     private val memoryInteractor: MemoryInteractor,
+    private val invariantInteractor: InvariantInteractor,
     private val taskInteractor: TaskInteractor,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
@@ -156,6 +158,21 @@ internal class ChatViewModel @Inject constructor(
             }
         }
         viewModelScope.launch {
+            combine(
+                invariantInteractor.observeAllInvariants(),
+                invariantInteractor.observeConversationInvariantIds(conversationId),
+            ) { allInvariants, selectedIds ->
+                allInvariants to selectedIds.toSet()
+            }.collect { (allInvariants, selectedIds) ->
+                _uiState.update { state ->
+                    state.copy(
+                        availableInvariants = allInvariants,
+                        selectedInvariantIds = selectedIds,
+                    )
+                }
+            }
+        }
+        viewModelScope.launch {
             taskInteractor.observeTaskState(conversationId).collect { taskState ->
                 _uiState.update { state ->
                     val isInputEnabled = !state.isTaskMode || (
@@ -228,6 +245,21 @@ internal class ChatViewModel @Inject constructor(
 
     fun onDismissMemorySheet() {
         _uiState.update { it.copy(isMemorySheetVisible = false) }
+    }
+
+    fun onInvariantsSettingsClicked() {
+        _uiState.update { it.copy(isInvariantsSheetVisible = true) }
+    }
+
+    fun onDismissInvariantsSheet() {
+        _uiState.update { it.copy(isInvariantsSheetVisible = false) }
+    }
+
+    fun onSaveInvariantSelection(invariantIds: Set<String>) {
+        viewModelScope.launch {
+            invariantInteractor.saveConversationInvariantIds(conversationId, invariantIds.toList())
+            _uiState.update { it.copy(isInvariantsSheetVisible = false) }
+        }
     }
 
     fun onSaveMemorySelection(workingMemoryId: String?, profileMemoryId: String?) {

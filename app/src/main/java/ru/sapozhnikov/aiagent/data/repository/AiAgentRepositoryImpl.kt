@@ -8,6 +8,7 @@ import ru.sapozhnikov.aiagent.data.remote.dto.ChatMessageDto
 import ru.sapozhnikov.aiagent.data.remote.dto.ThinkingDto
 import ru.sapozhnikov.aiagent.domain.model.AiAgentMessage
 import ru.sapozhnikov.aiagent.domain.model.ApiConversationContext
+import ru.sapozhnikov.aiagent.domain.model.AssistantInvariant
 import ru.sapozhnikov.aiagent.domain.model.ChatHistoryMessage
 import ru.sapozhnikov.aiagent.domain.model.MemoryInstance
 import ru.sapozhnikov.aiagent.domain.model.MessageRole
@@ -30,6 +31,14 @@ internal class AiAgentRepositoryImpl @Inject constructor(
     ): Result<AiAgentMessage> {
         return try {
             val requestMessages = buildList {
+                context.invariants.takeIf { it.isNotEmpty() }?.let { invariants ->
+                    add(
+                        ChatMessageDto(
+                            role = "system",
+                            content = formatInvariantsBlock(invariants),
+                        ),
+                    )
+                }
                 context.taskSystemPrompt?.let { taskPrompt ->
                     val artifactsBlock = TaskStagePrompts.formatArtifactsBlock(context.taskArtifacts)
                     val fullPrompt = if (artifactsBlock.isNotBlank()) {
@@ -239,6 +248,18 @@ internal class AiAgentRepositoryImpl @Inject constructor(
         return existingFacts.orEmpty()
     }
 
+    private fun formatInvariantsBlock(invariants: List<AssistantInvariant>): String {
+        return buildString {
+            appendLine(INVARIANTS_HEADER)
+            appendLine()
+            invariants.forEach { invariant ->
+                appendLine("- ${invariant.name}: ${invariant.text}")
+            }
+            appendLine()
+            append(INVARIANTS_INSTRUCTIONS)
+        }.trim()
+    }
+
     private fun formatFactsBlock(facts: Map<String, String>): String {
         return buildString {
             appendLine("Важные факты из диалога:")
@@ -271,5 +292,16 @@ internal class AiAgentRepositoryImpl @Inject constructor(
                 "Верни ТОЛЬКО JSON-объект вида {\"ключ\": \"значение\"}. " +
                 "Обнови существующие факты с учётом нового сообщения. " +
                 "Используй короткие русские ключи. Не добавляй пояснений вне JSON."
+        const val INVARIANTS_HEADER =
+            "ИНВАРИАНТЫ — обязательные правила, которые ты НЕ ИМЕЕШЬ ПРАВА нарушать."
+        const val INVARIANTS_INSTRUCTIONS =
+            "Инструкции по инвариантам:\n" +
+                "1. Перед каждым ответом явно проверяй, не нарушает ли предлагаемое решение ни один инвариант.\n" +
+                "2. Если запрос пользователя или твоё решение нарушает инвариант — откажись от предложения, " +
+                "назови нарушенный инвариант и предложи альтернативу в рамках ограничений.\n" +
+                "3. Не предлагай обходные пути, которые формально или фактически нарушают инварианты.\n" +
+                "4. В рассуждениях указывай, какие инварианты ты проверил и как они повлияли на ответ. \n" +
+                "5. Не упоминай инварианты в ответе, когда ты не видишь никаких противоречий между инвариантами и запросом пользователя."
+
     }
 }

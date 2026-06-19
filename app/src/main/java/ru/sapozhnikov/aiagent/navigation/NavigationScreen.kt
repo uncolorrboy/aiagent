@@ -54,6 +54,20 @@ sealed class Screen(val route: String) {
     }
 
     /**
+     * Экран создания или редактирования инварианта.
+     */
+    object InvariantEditor : Screen("invariant_editor/{invariantId}") {
+        const val ROUTE = "invariant_editor/{invariantId}"
+        const val INVARIANT_ID_ARG = "invariantId"
+        const val NEW_INVARIANT_ID = "new"
+
+        fun createRoute(invariantId: String? = null): String {
+            val id = invariantId ?: NEW_INVARIANT_ID
+            return "invariant_editor/$id"
+        }
+    }
+
+    /**
      * Экран чата с конкретным диалогом.
      *
      * @property ROUTE шаблон маршрута с аргументом [CONVERSATION_ID_ARG]

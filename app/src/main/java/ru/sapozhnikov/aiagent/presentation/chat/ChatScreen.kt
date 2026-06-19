@@ -33,6 +33,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.CallSplit
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AttachFile
+import androidx.compose.material.icons.filled.Policy
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
@@ -108,6 +109,9 @@ internal fun ChatRoot(
         onMemorySettingsClicked = viewModel::onMemorySettingsClicked,
         onDismissMemorySheet = viewModel::onDismissMemorySheet,
         onSaveMemorySelection = viewModel::onSaveMemorySelection,
+        onInvariantsSettingsClicked = viewModel::onInvariantsSettingsClicked,
+        onDismissInvariantsSheet = viewModel::onDismissInvariantsSheet,
+        onSaveInvariantSelection = viewModel::onSaveInvariantSelection,
         onTaskStageSelected = viewModel::onTaskStageSelected,
         onAdvanceTaskStage = viewModel::onAdvanceTaskStage,
     )
@@ -126,6 +130,9 @@ private fun ChatScreen(
     onMemorySettingsClicked: () -> Unit,
     onDismissMemorySheet: () -> Unit,
     onSaveMemorySelection: (String?, String?) -> Unit,
+    onInvariantsSettingsClicked: () -> Unit,
+    onDismissInvariantsSheet: () -> Unit,
+    onSaveInvariantSelection: (Set<String>) -> Unit,
     onTaskStageSelected: (TaskStage) -> Unit,
     onAdvanceTaskStage: () -> Unit,
 ) {
@@ -138,6 +145,15 @@ private fun ChatScreen(
             isSelectionLocked = uiState.isMemorySelectionLocked,
             onDismiss = onDismissMemorySheet,
             onSave = onSaveMemorySelection,
+        )
+    }
+
+    if (uiState.isInvariantsSheetVisible) {
+        ChatInvariantsBottomSheet(
+            availableInvariants = uiState.availableInvariants,
+            selectedInvariantIds = uiState.selectedInvariantIds,
+            onDismiss = onDismissInvariantsSheet,
+            onSave = onSaveInvariantSelection,
         )
     }
 
@@ -166,6 +182,12 @@ private fun ChatScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = onInvariantsSettingsClicked) {
+                        Icon(
+                            imageVector = Icons.Filled.Policy,
+                            contentDescription = "Инварианты",
+                        )
+                    }
                     IconButton(onClick = onMemorySettingsClicked) {
                         Icon(
                             imageVector = Icons.Filled.Settings,
@@ -596,6 +618,9 @@ private fun ChatScreenPreview() {
             onMemorySettingsClicked = {},
             onDismissMemorySheet = {},
             onSaveMemorySelection = { _, _ -> },
+            onInvariantsSettingsClicked = {},
+            onDismissInvariantsSheet = {},
+            onSaveInvariantSelection = {},
             onTaskStageSelected = {},
             onAdvanceTaskStage = {},
         )
