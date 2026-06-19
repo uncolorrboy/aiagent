@@ -36,6 +36,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import ru.sapozhnikov.aiagent.domain.model.AssistantInvariant
 import ru.sapozhnikov.aiagent.domain.model.ContextManagementStrategy
 import ru.sapozhnikov.aiagent.domain.model.MemoryInstance
 import ru.sapozhnikov.aiagent.ui.theme.AiAgentTheme
@@ -50,6 +51,7 @@ import ru.sapozhnikov.aiagent.ui.theme.AiAgentTheme
 internal fun SettingsRoot(
     onBack: () -> Unit,
     onOpenMemoryEditor: (MemoryEditorType, String?) -> Unit,
+    onOpenInvariantEditor: (String?) -> Unit,
 ) {
     val viewModel: SettingsViewModel = hiltViewModel()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -68,6 +70,9 @@ internal fun SettingsRoot(
         },
         onDeleteWorkingMemory = viewModel::onDeleteWorkingMemory,
         onDeleteProfileMemory = viewModel::onDeleteProfileMemory,
+        onAddInvariantClicked = { onOpenInvariantEditor(null) },
+        onEditInvariant = { invariant -> onOpenInvariantEditor(invariant.id) },
+        onDeleteInvariant = viewModel::onDeleteInvariant,
     )
 }
 
@@ -84,6 +89,9 @@ private fun SettingsScreen(
     onEditProfileMemory: (MemoryInstance) -> Unit,
     onDeleteWorkingMemory: (String) -> Unit,
     onDeleteProfileMemory: (String) -> Unit,
+    onAddInvariantClicked: () -> Unit,
+    onEditInvariant: (AssistantInvariant) -> Unit,
+    onDeleteInvariant: (String) -> Unit,
 ) {
     Scaffold(
         modifier = Modifier
@@ -132,6 +140,13 @@ private fun SettingsScreen(
                 onEditClicked = onEditProfileMemory,
                 onDeleteClicked = onDeleteProfileMemory,
             )
+
+            InvariantsSection(
+                invariants = uiState.invariants,
+                onAddClicked = onAddInvariantClicked,
+                onEditClicked = onEditInvariant,
+                onDeleteClicked = onDeleteInvariant,
+            )
         }
     }
 }
@@ -168,6 +183,103 @@ private fun ContextManagementStrategySetting(
         }
 
         HorizontalDivider(modifier = Modifier.padding(top = 12.dp))
+    }
+}
+
+@Composable
+private fun InvariantsSection(
+    invariants: List<AssistantInvariant>,
+    onAddClicked: () -> Unit,
+    onEditClicked: (AssistantInvariant) -> Unit,
+    onDeleteClicked: (String) -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "Инварианты",
+                style = MaterialTheme.typography.titleMedium,
+            )
+            IconButton(onClick = onAddClicked) {
+                Icon(
+                    imageVector = Icons.Filled.Add,
+                    contentDescription = "Добавить",
+                )
+            }
+        }
+        Text(
+            text = "Обязательные правила, которые ассистент не имеет права нарушать. Выбираются в чате.",
+            modifier = Modifier.padding(bottom = 8.dp),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
+        if (invariants.isEmpty()) {
+            Text(
+                text = "Нет инвариантов",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        } else {
+            invariants.forEach { invariant ->
+                InvariantItem(
+                    invariant = invariant,
+                    onEditClicked = { onEditClicked(invariant) },
+                    onDeleteClicked = { onDeleteClicked(invariant.id) },
+                )
+            }
+        }
+
+        HorizontalDivider(modifier = Modifier.padding(top = 12.dp))
+    }
+}
+
+@Composable
+private fun InvariantItem(
+    invariant: AssistantInvariant,
+    onEditClicked: () -> Unit,
+    onDeleteClicked: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = invariant.name,
+                style = MaterialTheme.typography.bodyLarge,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = invariant.text,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        IconButton(onClick = onEditClicked) {
+            Icon(
+                imageVector = Icons.Filled.Edit,
+                contentDescription = "Редактировать",
+            )
+        }
+        IconButton(onClick = onDeleteClicked) {
+            Icon(
+                imageVector = Icons.Filled.Delete,
+                contentDescription = "Удалить",
+            )
+        }
     }
 }
 
@@ -340,6 +452,9 @@ private fun SettingsScreenPreview() {
             onEditProfileMemory = {},
             onDeleteWorkingMemory = {},
             onDeleteProfileMemory = {},
+            onAddInvariantClicked = {},
+            onEditInvariant = {},
+            onDeleteInvariant = {},
         )
     }
 }

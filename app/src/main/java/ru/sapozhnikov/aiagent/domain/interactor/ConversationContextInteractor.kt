@@ -40,6 +40,7 @@ internal class ConversationContextInteractor @Inject constructor(
     private val aiAgentRepository: AiAgentRepository,
     private val settingsRepository: SettingsRepository,
     private val taskInteractor: TaskInteractor,
+    private val invariantInteractor: InvariantInteractor,
 ) {
 
     /**
@@ -56,6 +57,7 @@ internal class ConversationContextInteractor @Inject constructor(
         val memorySelection = conversationMemoryRepository.getSelection(conversationId)
         val workingMemory = memorySelection?.workingMemoryId?.let { workingMemoryRepository.getById(it) }
         val profileMemory = memorySelection?.profileMemoryId?.let { profileMemoryRepository.getById(it) }
+        val invariants = invariantInteractor.getInvariantsForApi(conversationId)
 
         val context = when (strategy) {
             ContextManagementStrategy.DEFAULT -> {
@@ -84,6 +86,7 @@ internal class ConversationContextInteractor @Inject constructor(
         }
 
         return context.copy(
+            invariants = invariants,
             workingMemory = workingMemory,
             profileMemory = profileMemory,
         ).also { enrichedContext ->
@@ -94,6 +97,7 @@ internal class ConversationContextInteractor @Inject constructor(
                     append(", messages=${enrichedContext.messages.size}")
                     append(", summary=${enrichedContext.summary != null}")
                     append(", facts=${enrichedContext.facts?.size ?: 0}")
+                    append(", invariants=${enrichedContext.invariants.size}")
                     append(", workingMemory=${enrichedContext.workingMemory?.name}")
                     append(", profileMemory=${enrichedContext.profileMemory?.name}")
                 },
@@ -115,9 +119,11 @@ internal class ConversationContextInteractor @Inject constructor(
         val memorySelection = conversationMemoryRepository.getSelection(conversationId)
         val workingMemory = memorySelection?.workingMemoryId?.let { workingMemoryRepository.getById(it) }
         val profileMemory = memorySelection?.profileMemoryId?.let { profileMemoryRepository.getById(it) }
+        val invariants = invariantInteractor.getInvariantsForApi(conversationId)
 
         return ApiConversationContext(
             messages = messages,
+            invariants = invariants,
             workingMemory = workingMemory,
             profileMemory = profileMemory,
             taskStage = activeStage,
@@ -127,7 +133,7 @@ internal class ConversationContextInteractor @Inject constructor(
             Log.d(
                 TAG,
                 "Контекст задачи: stage=$activeStage, messages=${context.messages.size}, " +
-                    "artifacts=${context.taskArtifacts.size}",
+                    "artifacts=${context.taskArtifacts.size}, invariants=${context.invariants.size}",
             )
         }
     }
