@@ -14,6 +14,7 @@ package ru.sapozhnikov.aiagent.domain.model
  * @property attachmentUri URI сохранённого файла-вложения
  * @property attachmentFileName отображаемое имя прикреплённого файла
  * @property branchId идентификатор ветки (null — общая часть до checkpoint)
+ * @property taskStage этап задачи (null — обычный чат или legacy-сообщение)
  */
 internal data class ChatHistoryMessage(
     val id: Long,
@@ -27,6 +28,7 @@ internal data class ChatHistoryMessage(
     val attachmentUri: String? = null,
     val attachmentFileName: String? = null,
     val branchId: String? = null,
+    val taskStage: TaskStage? = null,
 )
 
 /** Роль участника диалога при обмене сообщениями с LLM API. */

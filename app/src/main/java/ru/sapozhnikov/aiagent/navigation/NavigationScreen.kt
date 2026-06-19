@@ -6,6 +6,7 @@ import ru.sapozhnikov.aiagent.navigation.Screen.MemoryEditor.INSTANCE_ID_ARG
 import ru.sapozhnikov.aiagent.navigation.Screen.MemoryEditor.MEMORY_TYPE_ARG
 import ru.sapozhnikov.aiagent.navigation.Screen.MemoryEditor.NEW_INSTANCE_ID
 import ru.sapozhnikov.aiagent.navigation.Screen.MemoryEditor.ROUTE
+import ru.sapozhnikov.aiagent.navigation.Screen.Task.ROUTE
 
 
 /**
@@ -18,6 +19,17 @@ sealed class Screen(val route: String) {
 
     /** Экран настроек приложения. */
     object Settings : Screen("settings")
+
+    /**
+     * Экран задачи с этапами.
+     *
+     * @property ROUTE шаблон маршрута с аргументом [Chat.CONVERSATION_ID_ARG]
+     */
+    object Task : Screen("task/{conversationId}") {
+        const val ROUTE = "task/{conversationId}"
+
+        fun createRoute(conversationId: String) = "task/$conversationId"
+    }
 
     /**
      * Экран создания или редактирования экземпляра памяти.

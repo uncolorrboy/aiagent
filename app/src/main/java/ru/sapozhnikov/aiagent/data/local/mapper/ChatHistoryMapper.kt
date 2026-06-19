@@ -4,14 +4,14 @@ import ru.sapozhnikov.aiagent.data.local.entity.ConversationEntity
 import ru.sapozhnikov.aiagent.data.local.entity.MessageEntity
 import ru.sapozhnikov.aiagent.domain.model.ChatHistoryMessage
 import ru.sapozhnikov.aiagent.domain.model.Conversation
+import ru.sapozhnikov.aiagent.domain.model.ConversationMode
 import ru.sapozhnikov.aiagent.domain.model.MessageKind
 import ru.sapozhnikov.aiagent.domain.model.MessageRole
-
-/** Преобразует [ConversationEntity] в доменную модель [Conversation]. */
 internal fun ConversationEntity.toDomain(): Conversation = Conversation(
     id = id,
     title = title,
     updatedAt = updatedAt,
+    mode = runCatching { ConversationMode.valueOf(mode) }.getOrDefault(ConversationMode.CHAT),
 )
 
 /** Преобразует [MessageEntity] в доменную модель [ChatHistoryMessage]. */
@@ -27,6 +27,7 @@ internal fun MessageEntity.toDomain(): ChatHistoryMessage = ChatHistoryMessage(
     attachmentUri = attachmentUri,
     attachmentFileName = attachmentFileName,
     branchId = branchId,
+    taskStage = taskStage.toTaskStageOrNull(),
 )
 
 /** Преобразует [MessageRole] в строковое значение для Room. */

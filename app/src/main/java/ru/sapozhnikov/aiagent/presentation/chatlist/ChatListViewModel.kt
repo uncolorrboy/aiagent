@@ -55,6 +55,7 @@ internal class ChatListViewModel @Inject constructor(
             id = id,
             title = title,
             updatedAt = dateFormat.format(Date(updatedAt)),
+            mode = mode,
         )
     }
 }

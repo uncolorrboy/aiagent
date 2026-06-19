@@ -5,10 +5,13 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -17,19 +20,19 @@ import ru.sapozhnikov.aiagent.domain.interactor.ChatHistoryInteractor
 import ru.sapozhnikov.aiagent.domain.interactor.ConversationBranchInteractor
 import ru.sapozhnikov.aiagent.domain.interactor.MemoryInteractor
 import ru.sapozhnikov.aiagent.domain.interactor.SettingsInteractor
+import ru.sapozhnikov.aiagent.domain.interactor.TaskInteractor
 import ru.sapozhnikov.aiagent.domain.model.ContextManagementStrategy
 import ru.sapozhnikov.aiagent.domain.model.ConversationMemorySelection
+import ru.sapozhnikov.aiagent.domain.model.ConversationMode
+import ru.sapozhnikov.aiagent.domain.model.TaskStage
+import ru.sapozhnikov.aiagent.domain.model.TaskStagePrompts
+import ru.sapozhnikov.aiagent.domain.model.advanceActionLabel
 import javax.inject.Inject
 
 /**
  * ViewModel экрана чата: отправка сообщений, файлов и наблюдение за историей.
- *
- * @param aiAgentInteractor use-case для отправки сообщений LLM
- * @param chatHistoryInteractor use-case для работы с историей чатов
- * @param conversationBranchInteractor use-case для управления ветками
- * @param settingsInteractor use-case для чтения настроек
- * @param savedStateHandle аргументы навигации (conversationId)
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 internal class ChatViewModel @Inject constructor(
     private val aiAgentInteractor: AiAgentInteractor,
@@ -37,27 +40,62 @@ internal class ChatViewModel @Inject constructor(
     private val conversationBranchInteractor: ConversationBranchInteractor,
     private val settingsInteractor: SettingsInteractor,
     private val memoryInteractor: MemoryInteractor,
+    private val taskInteractor: TaskInteractor,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
     private val conversationId: String = checkNotNull(savedStateHandle["conversationId"])
 
     private val _uiState = MutableStateFlow(ChatScreenUiState())
-    /** Состояние UI экрана чата. */
     val uiState = _uiState.asStateFlow()
 
+    private val isTaskModeFlow = MutableStateFlow(false)
+
     private val _errorEvents = Channel<String>(Channel.BUFFERED)
-    /** Одноразовые события ошибок для отображения пользователю. */
     val errorEvents = _errorEvents.receiveAsFlow()
 
     init {
         viewModelScope.launch {
-            chatHistoryInteractor.observeMessages(conversationId).collect { messages ->
+            val mode = chatHistoryInteractor.getConversationMode(conversationId)
+            val isTaskMode = mode == ConversationMode.TASK
+            isTaskModeFlow.value = isTaskMode
+            _uiState.update { state ->
+                state.copy(mode = mode, isTaskMode = isTaskMode)
+            }
+        }
+
+        viewModelScope.launch {
+            combine(
+                isTaskModeFlow,
+                taskInteractor.observeTaskState(conversationId),
+            ) { isTaskMode, taskState ->
+                isTaskMode to taskState
+            }.flatMapLatest { (isTaskMode, taskState) ->
+                when {
+                    isTaskMode && taskState != null ->
+                        chatHistoryInteractor.observeMessagesForTaskStage(
+                            conversationId,
+                            taskState.viewingStage,
+                        )
+                    !isTaskMode ->
+                        chatHistoryInteractor.observeMessages(conversationId)
+                    else -> flowOf(emptyList())
+                }
+            }.collect { messages ->
                 _uiState.update { state ->
-                    state.copy(items = messages.reversed().map { it.toUiModel() })
+                    val isInputEnabled = !state.isTaskMode || (
+                        state.activeTaskStage != null &&
+                            state.viewingTaskStage == state.activeTaskStage &&
+                            state.activeTaskStage != TaskStage.DONE
+                        )
+                    state.copy(
+                        items = messages.reversed().map { it.toUiModel() },
+                        isInputEnabled = isInputEnabled,
+                    )
                 }
             }
         }
+
         viewModelScope.launch {
             chatHistoryInteractor.observeTotalTokenCount(conversationId).collect { totalTokens ->
                 _uiState.update { state ->
@@ -90,7 +128,8 @@ internal class ChatViewModel @Inject constructor(
                                 isActive = branch.isActive,
                             )
                         },
-                        canCreateCheckpoint = strategy == ContextManagementStrategy.BRANCHING &&
+                        canCreateCheckpoint = !state.isTaskMode &&
+                            strategy == ContextManagementStrategy.BRANCHING &&
                             branches.isEmpty() &&
                             messages.isNotEmpty(),
                     )
@@ -116,24 +155,81 @@ internal class ChatViewModel @Inject constructor(
                 }
             }
         }
+        viewModelScope.launch {
+            taskInteractor.observeTaskState(conversationId).collect { taskState ->
+                _uiState.update { state ->
+                    val isInputEnabled = !state.isTaskMode || (
+                        taskState?.activeStage != null &&
+                            taskState.viewingStage == taskState.activeStage &&
+                            taskState.activeStage != TaskStage.DONE
+                        )
+                    state.copy(
+                        activeTaskStage = taskState?.activeStage,
+                        viewingTaskStage = taskState?.viewingStage,
+                        isInputEnabled = isInputEnabled,
+                        canAdvanceTaskStage = state.isTaskMode &&
+                            taskState?.activeStage != null &&
+                            taskState.viewingStage == taskState.activeStage &&
+                            taskState.activeStage != TaskStage.DONE &&
+                            taskState.activeStage.next() != null,
+                        advanceTaskStageLabel = taskState?.activeStage?.advanceActionLabel(),
+                    )
+                }
+            }
+        }
     }
 
-    /** Открывает BottomSheet выбора памяти. */
+    /** Инициализирует экран как новую задачу (вызывается из навигации). */
+    fun initializeAsTaskMode() {
+        viewModelScope.launch {
+            chatHistoryInteractor.initializeTaskMode(conversationId)
+            isTaskModeFlow.value = true
+            _uiState.update { state ->
+                state.copy(mode = ConversationMode.TASK, isTaskMode = true)
+            }
+        }
+    }
+
+    fun onTaskStageSelected(stage: TaskStage) {
+        viewModelScope.launch {
+            taskInteractor.switchViewingStage(conversationId, stage)
+        }
+    }
+
+    /** Переход на следующий этап по инициативе пользователя. */
+    fun onAdvanceTaskStage() {
+        if (_uiState.value.isLoading || !_uiState.value.canAdvanceTaskStage) return
+
+        viewModelScope.launch {
+            _uiState.update { state ->
+                state.copy(
+                    isLoading = true,
+                    sendButtonState = SendButtonState.IN_PROCESS,
+                )
+            }
+
+            val newStage = taskInteractor.advanceToNextStage(conversationId)
+            if (newStage != null) {
+                sendTaskStageContinuation(newStage)
+            }
+
+            _uiState.update { state ->
+                state.copy(
+                    isLoading = false,
+                    sendButtonState = SendButtonState.DEFAULT,
+                )
+            }
+        }
+    }
+
     fun onMemorySettingsClicked() {
         _uiState.update { it.copy(isMemorySheetVisible = true) }
     }
 
-    /** Закрывает BottomSheet выбора памяти. */
     fun onDismissMemorySheet() {
         _uiState.update { it.copy(isMemorySheetVisible = false) }
     }
 
-    /**
-     * Сохраняет выбор памяти для диалога (один раз).
-     *
-     * @param workingMemoryId идентификатор рабочей памяти или null
-     * @param profileMemoryId идентификатор профиля или null
-     */
     fun onSaveMemorySelection(workingMemoryId: String?, profileMemoryId: String?) {
         if (_uiState.value.isMemorySelectionLocked) return
 
@@ -149,51 +245,17 @@ internal class ChatViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Обрабатывает отправку текстового сообщения пользователем.
-     *
-     * @param message текст сообщения
-     */
     fun onMessageSent(message: String) {
-        if (message.isBlank() || _uiState.value.isLoading) return
-
-        val trimmedMessage = message.trim()
+        if (message.isBlank() || _uiState.value.isLoading || !_uiState.value.isInputEnabled) return
 
         viewModelScope.launch {
-            _uiState.update { state ->
-                state.copy(
-                    isLoading = true,
-                    sendButtonState = SendButtonState.IN_PROCESS,
-                )
-            }
-
-            val context = chatHistoryInteractor.getContextForApi(conversationId)
-            chatHistoryInteractor.saveUserMessage(conversationId, trimmedMessage)
-
-            aiAgentInteractor.sendMessage(context, trimmedMessage)
-                .onSuccess { response ->
-                    chatHistoryInteractor.saveAiAgentMessage(conversationId, response)
-                }
-                .onFailure { error ->
-                    _errorEvents.send(error.toUserMessage())
-                }
-
-            _uiState.update { state ->
-                state.copy(
-                    isLoading = false,
-                    sendButtonState = SendButtonState.DEFAULT,
-                )
-            }
+            sendMessageWithAiResponse(message.trim())
         }
     }
 
-    /**
-     * Обрабатывает выбор текстового файла для отправки в чат.
-     *
-     * @param uri URI выбранного файла
-     */
     fun onTextFileSelected(uri: Uri) {
-        if (_uiState.value.isLoading) return
+        if (_uiState.value.isLoading || !_uiState.value.isInputEnabled) return
+        val taskStage = _uiState.value.activeTaskStage.takeIf { _uiState.value.isTaskMode }
 
         viewModelScope.launch {
             _uiState.update { state ->
@@ -204,16 +266,12 @@ internal class ChatViewModel @Inject constructor(
             }
 
             runCatching {
-                val context = chatHistoryInteractor.getContextForApi(conversationId)
-                val savedFileMessage = chatHistoryInteractor.saveUserFileMessage(conversationId, uri)
-
-                aiAgentInteractor.sendMessage(context, savedFileMessage.content)
-                    .onSuccess { response ->
-                        chatHistoryInteractor.saveAiAgentMessage(conversationId, response)
-                    }
-                    .onFailure { error ->
-                        _errorEvents.send(error.toUserMessage())
-                    }
+                val savedFileMessage = chatHistoryInteractor.saveUserFileMessage(
+                    conversationId,
+                    uri,
+                    taskStage,
+                )
+                sendMessageWithAiResponse(savedFileMessage.content, taskStage)
             }.onFailure { error ->
                 _errorEvents.send(error.toUserMessage())
             }
@@ -227,9 +285,8 @@ internal class ChatViewModel @Inject constructor(
         }
     }
 
-    /** Создаёт checkpoint и две ветки от текущего места диалога. */
     fun onCreateCheckpoint() {
-        if (_uiState.value.isLoading) return
+        if (_uiState.value.isLoading || _uiState.value.isTaskMode) return
 
         viewModelScope.launch {
             conversationBranchInteractor.createCheckpoint(conversationId)
@@ -241,10 +298,60 @@ internal class ChatViewModel @Inject constructor(
         }
     }
 
-    /** Переключает активную ветку диалога. */
     fun onBranchSelected(branchId: String) {
         viewModelScope.launch {
             conversationBranchInteractor.switchBranch(conversationId, branchId)
+        }
+    }
+
+    private suspend fun sendMessageWithAiResponse(
+        message: String,
+        taskStage: TaskStage? = _uiState.value.activeTaskStage.takeIf { _uiState.value.isTaskMode },
+    ) {
+        _uiState.update { state ->
+            state.copy(
+                isLoading = true,
+                sendButtonState = SendButtonState.IN_PROCESS,
+            )
+        }
+
+        val context = chatHistoryInteractor.getContextForApi(conversationId)
+        chatHistoryInteractor.saveUserMessage(conversationId, message, taskStage)
+
+        val aiResult = aiAgentInteractor.sendMessage(context, message)
+        if (aiResult.isSuccess) {
+            chatHistoryInteractor.saveAiAgentMessage(
+                conversationId,
+                aiResult.getOrThrow(),
+                taskStage,
+            )
+        } else {
+            aiResult.exceptionOrNull()?.let { _errorEvents.send(it.toUserMessage()) }
+        }
+
+        _uiState.update { state ->
+            state.copy(
+                isLoading = false,
+                sendButtonState = SendButtonState.DEFAULT,
+            )
+        }
+    }
+
+    private suspend fun sendTaskStageContinuation(stage: TaskStage) {
+        chatHistoryInteractor.saveTaskStageContinuationMessage(conversationId, stage)
+
+        val context = chatHistoryInteractor.getContextForApi(conversationId)
+        val continuationMessage = TaskStagePrompts.continuationMessageFor(stage) ?: return
+
+        val aiResult = aiAgentInteractor.sendMessage(context, continuationMessage)
+        if (aiResult.isSuccess) {
+            chatHistoryInteractor.saveAiAgentMessage(
+                conversationId,
+                aiResult.getOrThrow(),
+                stage,
+            )
+        } else {
+            aiResult.exceptionOrNull()?.let { _errorEvents.send(it.toUserMessage()) }
         }
     }
 

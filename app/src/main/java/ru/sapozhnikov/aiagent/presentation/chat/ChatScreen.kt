@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
@@ -34,6 +35,7 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -61,6 +63,9 @@ import androidx.constraintlayout.compose.Visibility
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ru.sapozhnikov.aiagent.domain.model.ContextManagementStrategy
+import ru.sapozhnikov.aiagent.domain.model.TaskStage
+import ru.sapozhnikov.aiagent.domain.model.displayName
+import ru.sapozhnikov.aiagent.domain.model.shortName
 import ru.sapozhnikov.aiagent.presentation.formatter.formatChatPrice
 import ru.sapozhnikov.aiagent.presentation.formatter.formatTokenCount
 import ru.sapozhnikov.aiagent.ui.theme.AiAgentTheme
@@ -72,11 +77,20 @@ import ru.sapozhnikov.aiagent.ui.theme.AiAgentTheme
  * @param onOpenChatList колбэк перехода к списку чатов
  */
 @Composable
-internal fun ChatRoot(onOpenChatList: () -> Unit) {
+internal fun ChatRoot(
+    onOpenChatList: () -> Unit,
+    isTaskMode: Boolean = false,
+) {
     val viewModel: ChatViewModel = hiltViewModel()
     val context = LocalContext.current
 
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    LaunchedEffect(isTaskMode) {
+        if (isTaskMode) {
+            viewModel.initializeAsTaskMode()
+        }
+    }
 
     LaunchedEffect(viewModel) {
         viewModel.errorEvents.collect { message ->
@@ -94,6 +108,8 @@ internal fun ChatRoot(onOpenChatList: () -> Unit) {
         onMemorySettingsClicked = viewModel::onMemorySettingsClicked,
         onDismissMemorySheet = viewModel::onDismissMemorySheet,
         onSaveMemorySelection = viewModel::onSaveMemorySelection,
+        onTaskStageSelected = viewModel::onTaskStageSelected,
+        onAdvanceTaskStage = viewModel::onAdvanceTaskStage,
     )
 }
 
@@ -110,6 +126,8 @@ private fun ChatScreen(
     onMemorySettingsClicked: () -> Unit,
     onDismissMemorySheet: () -> Unit,
     onSaveMemorySelection: (String?, String?) -> Unit,
+    onTaskStageSelected: (TaskStage) -> Unit,
+    onAdvanceTaskStage: () -> Unit,
 ) {
     if (uiState.isMemorySheetVisible) {
         ChatMemoryBottomSheet(
@@ -129,7 +147,7 @@ private fun ChatScreen(
             TopAppBar(
                 title = {
                     Column {
-                        Text("Чат")
+                        Text(if (uiState.isTaskMode) "Задача" else "Чат")
                         if (uiState.totalTokenCount > 0) {
                             Text(
                                 text = "Всего: ${formatTokenCount(uiState.totalTokenCount)}, ${formatChatPrice(uiState.chatPrice)}",
@@ -176,6 +194,14 @@ private fun ChatScreen(
                 .padding(innerPadding)
                 .background(Color.White),
         ) {
+            if (uiState.isTaskMode) {
+                TaskStageTabs(
+                    activeStage = uiState.activeTaskStage,
+                    viewingStage = uiState.viewingTaskStage,
+                    onStageSelected = onTaskStageSelected,
+                )
+            }
+
             if (uiState.contextStrategy == ContextManagementStrategy.BRANCHING &&
                 uiState.branches.isNotEmpty()
             ) {
@@ -189,6 +215,67 @@ private fun ChatScreen(
                 uiState = uiState,
                 onSendMessageButtonClicked = onSendMessageButtonClicked,
                 onTextFileSelected = onTextFileSelected,
+                onAdvanceTaskStage = onAdvanceTaskStage,
+            )
+        }
+    }
+}
+
+/** Кнопка перехода на следующий этап задачи. */
+@Composable
+private fun TaskStageAdvanceBar(
+    label: String,
+    enabled: Boolean,
+    onAdvance: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.End,
+    ) {
+        FilledTonalButton(
+            enabled = enabled,
+            onClick = onAdvance,
+        ) {
+            Text(label)
+        }
+    }
+}
+
+/** Переключатель этапов задачи. */
+@Composable
+private fun TaskStageTabs(
+    activeStage: TaskStage?,
+    viewingStage: TaskStage?,
+    onStageSelected: (TaskStage) -> Unit,
+) {
+    val stages = TaskStage.navigableStages + TaskStage.DONE
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        stages.forEach { stage ->
+            val isViewing = stage == viewingStage
+            val isActive = stage == activeStage
+            val isCompleted = activeStage != null &&
+                TaskStage.entries.indexOf(stage) < TaskStage.entries.indexOf(activeStage)
+            FilterChip(
+                selected = isViewing,
+                onClick = { onStageSelected(stage) },
+                label = {
+                    val suffix = when {
+                        activeStage == TaskStage.DONE -> " ✓"
+                        isActive -> " ●"
+                        isCompleted -> " ✓"
+                        else -> ""
+                    }
+                    Text(stage.shortName() + suffix)
+                },
             )
         }
     }
@@ -223,6 +310,7 @@ private fun ChatContent(
     uiState: ChatScreenUiState,
     onSendMessageButtonClicked: (String) -> Unit,
     onTextFileSelected: (Uri) -> Unit,
+    onAdvanceTaskStage: () -> Unit,
 ) {
     val listState = rememberLazyListState()
     val context = LocalContext.current
@@ -250,7 +338,7 @@ private fun ChatContent(
                     .only(WindowInsetsSides.Bottom),
             ),
     ) {
-            val (chatRef, textInputRef, attachFileButtonRef, sendButtonRef, emptyChatPlaceholderRef) = createRefs()
+            val (chatRef, advanceBarRef, textInputRef, attachFileButtonRef, sendButtonRef, emptyChatPlaceholderRef) = createRefs()
 
             LazyColumn(
                 state = listState,
@@ -258,7 +346,7 @@ private fun ChatContent(
                     .fillMaxWidth()
                     .constrainAs(chatRef) {
                         top.linkTo(parent.top)
-                        bottom.linkTo(textInputRef.top)
+                        bottom.linkTo(advanceBarRef.top)
                         height = Dimension.fillToConstraints
                     },
                 reverseLayout = true,
@@ -271,6 +359,28 @@ private fun ChatContent(
 
             var textInput by remember { mutableStateOf("") }
 
+            if (uiState.canAdvanceTaskStage && uiState.advanceTaskStageLabel != null) {
+                TaskStageAdvanceBar(
+                    label = uiState.advanceTaskStageLabel,
+                    enabled = !uiState.isLoading,
+                    onAdvance = onAdvanceTaskStage,
+                    modifier = Modifier.constrainAs(advanceBarRef) {
+                        start.linkTo(parent.start)
+                        end.linkTo(parent.end)
+                        bottom.linkTo(textInputRef.top)
+                    },
+                )
+            } else {
+                Spacer(
+                    modifier = Modifier.constrainAs(advanceBarRef) {
+                        start.linkTo(parent.start)
+                        end.linkTo(parent.end)
+                        bottom.linkTo(textInputRef.top)
+                        height = Dimension.value(0.dp)
+                    },
+                )
+            }
+
             OutlinedTextField(
                 modifier = Modifier
                     .constrainAs(textInputRef) {
@@ -282,7 +392,16 @@ private fun ChatContent(
                     },
                 value = textInput,
                 onValueChange = { newValue -> textInput = newValue },
-                placeholder = { Text("Введите сообщение...") }
+                placeholder = {
+                    Text(
+                        if (uiState.isInputEnabled) {
+                            "Введите сообщение..."
+                        } else {
+                            "Просмотр этапа «${uiState.viewingTaskStage?.displayName() ?: ""}»"
+                        },
+                    )
+                },
+                readOnly = !uiState.isInputEnabled,
             )
 
             IconButton(
@@ -291,7 +410,7 @@ private fun ChatContent(
                     top.linkTo(textInputRef.top)
                     bottom.linkTo(textInputRef.bottom)
                 },
-                enabled = !uiState.isLoading,
+                enabled = !uiState.isLoading && uiState.isInputEnabled,
                 onClick = {
                     textFilePickerLauncher.launch(SUPPORTED_TEXT_FILE_MIME_TYPES)
                 },
@@ -308,7 +427,7 @@ private fun ChatContent(
                     top.linkTo(textInputRef.top)
                     bottom.linkTo(textInputRef.bottom)
                 },
-                enabled = textInput.isNotBlank() && !uiState.isLoading,
+                enabled = textInput.isNotBlank() && !uiState.isLoading && uiState.isInputEnabled,
                 onClick = {
                     onSendMessageButtonClicked(textInput)
                     textInput = ""
@@ -326,7 +445,7 @@ private fun ChatContent(
                 modifier = Modifier
                     .constrainAs(emptyChatPlaceholderRef) {
                         top.linkTo(parent.top)
-                        bottom.linkTo(textInputRef.top)
+                        bottom.linkTo(advanceBarRef.top)
                         start.linkTo(parent.start)
                         end.linkTo(parent.end)
 
@@ -477,6 +596,8 @@ private fun ChatScreenPreview() {
             onMemorySettingsClicked = {},
             onDismissMemorySheet = {},
             onSaveMemorySelection = { _, _ -> },
+            onTaskStageSelected = {},
+            onAdvanceTaskStage = {},
         )
     }
 }

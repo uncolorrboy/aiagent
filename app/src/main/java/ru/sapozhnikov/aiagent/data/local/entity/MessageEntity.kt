@@ -19,6 +19,7 @@ import androidx.room.PrimaryKey
  * @property attachmentUri URI сохранённого файла-вложения
  * @property attachmentFileName отображаемое имя прикреплённого файла
  * @property branchId идентификатор ветки (null — общая часть до checkpoint)
+ * @property taskStage этап задачи (null — обычный чат)
  */
 @Entity(
     tableName = "messages",
@@ -44,4 +45,5 @@ internal data class MessageEntity(
     val attachmentUri: String? = null,
     val attachmentFileName: String? = null,
     val branchId: String? = null,
+    val taskStage: String? = null,
 )

@@ -1,7 +1,9 @@
 package ru.sapozhnikov.aiagent.presentation.chat
 
 import ru.sapozhnikov.aiagent.domain.model.ContextManagementStrategy
+import ru.sapozhnikov.aiagent.domain.model.ConversationMode
 import ru.sapozhnikov.aiagent.domain.model.MemoryInstance
+import ru.sapozhnikov.aiagent.domain.model.TaskStage
 
 /**
  * Состояние UI экрана чата.
@@ -20,6 +22,11 @@ import ru.sapozhnikov.aiagent.domain.model.MemoryInstance
  * @property selectedWorkingMemoryId выбранная рабочая память или null
  * @property selectedProfileMemoryId выбранный профиль или null
  * @property isMemorySelectionLocked заблокирован ли выбор памяти (уже сохранён для диалога)
+ * @property mode режим диалога
+ * @property isTaskMode активен ли режим задачи
+ * @property activeTaskStage текущий активный этап задачи
+ * @property viewingTaskStage этап, переписку которого просматривает пользователь
+ * @property isInputEnabled доступен ли ввод сообщений
  */
 internal data class ChatScreenUiState(
     val isLoading: Boolean = false,
@@ -36,6 +43,13 @@ internal data class ChatScreenUiState(
     val selectedWorkingMemoryId: String? = null,
     val selectedProfileMemoryId: String? = null,
     val isMemorySelectionLocked: Boolean = false,
+    val mode: ConversationMode = ConversationMode.CHAT,
+    val isTaskMode: Boolean = false,
+    val activeTaskStage: TaskStage? = null,
+    val viewingTaskStage: TaskStage? = null,
+    val isInputEnabled: Boolean = true,
+    val canAdvanceTaskStage: Boolean = false,
+    val advanceTaskStageLabel: String? = null,
 )
 
 /**

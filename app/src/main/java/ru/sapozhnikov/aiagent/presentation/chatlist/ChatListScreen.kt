@@ -11,8 +11,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Assignment
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -21,6 +23,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -34,6 +37,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import ru.sapozhnikov.aiagent.domain.model.ConversationMode
 import ru.sapozhnikov.aiagent.ui.theme.AiAgentTheme
 
 /**
@@ -41,12 +45,14 @@ import ru.sapozhnikov.aiagent.ui.theme.AiAgentTheme
  *
  * @param onConversationClick колбэк открытия существующего диалога
  * @param onNewChatClick колбэк создания нового диалога
+ * @param onNewTaskClick колбэк создания новой задачи
  * @param onSettingsClick колбэк перехода к экрану настроек
  */
 @Composable
 internal fun ChatListRoot(
-    onConversationClick: (String) -> Unit,
+    onConversationClick: (String, Boolean) -> Unit,
     onNewChatClick: () -> Unit,
+    onNewTaskClick: () -> Unit,
     onSettingsClick: () -> Unit,
 ) {
     val viewModel: ChatListViewModel = hiltViewModel()
@@ -57,6 +63,7 @@ internal fun ChatListRoot(
         onConversationClick = onConversationClick,
         onConversationDelete = viewModel::deleteConversation,
         onNewChatClick = onNewChatClick,
+        onNewTaskClick = onNewTaskClick,
         onSettingsClick = onSettingsClick,
     )
 }
@@ -66,9 +73,10 @@ internal fun ChatListRoot(
 @Composable
 private fun ChatListScreen(
     uiState: ChatListUiState,
-    onConversationClick: (String) -> Unit,
+    onConversationClick: (String, Boolean) -> Unit,
     onConversationDelete: (String) -> Unit,
     onNewChatClick: () -> Unit,
+    onNewTaskClick: () -> Unit,
     onSettingsClick: () -> Unit,
 ) {
     Scaffold(
@@ -89,11 +97,25 @@ private fun ChatListScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = onNewChatClick) {
-                Icon(
-                    imageVector = Icons.Default.Add,
-                    contentDescription = "Новый чат",
-                )
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                FloatingActionButton(
+                    onClick = onNewTaskClick,
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Assignment,
+                        contentDescription = "Новая задача",
+                    )
+                }
+                FloatingActionButton(onClick = onNewChatClick) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = "Новый чат",
+                    )
+                }
             }
         },
         containerColor = Color.White,
@@ -131,7 +153,12 @@ private fun ChatListScreen(
                 items(uiState.conversations, key = { it.id }) { conversation ->
                     ConversationListItem(
                         conversation = conversation,
-                        onClick = { onConversationClick(conversation.id) },
+                        onClick = {
+                            onConversationClick(
+                                conversation.id,
+                                conversation.mode == ConversationMode.TASK,
+                            )
+                        },
                         onDelete = { onConversationDelete(conversation.id) },
                     )
                 }
@@ -159,12 +186,29 @@ private fun ConversationListItem(
                 .clickable(onClick = onClick)
                 .padding(vertical = 12.dp),
         ) {
-            Text(
-                text = conversation.title,
-                style = MaterialTheme.typography.titleMedium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = conversation.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                if (conversation.mode == ConversationMode.TASK) {
+                    Surface(
+                        modifier = Modifier.padding(start = 8.dp),
+                        shape = RoundedCornerShape(4.dp),
+                        color = MaterialTheme.colorScheme.secondaryContainer,
+                    ) {
+                        Text(
+                            text = "Задача",
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        )
+                    }
+                }
+            }
             Text(
                 text = conversation.updatedAt,
                 modifier = Modifier.padding(top = 4.dp),
@@ -201,9 +245,10 @@ private fun ChatListScreenPreview() {
                     ),
                 ),
             ),
-            onConversationClick = {},
+            onConversationClick = { _, _ -> },
             onConversationDelete = {},
             onNewChatClick = {},
+            onNewTaskClick = {},
             onSettingsClick = {},
         )
     }

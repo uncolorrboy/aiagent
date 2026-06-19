@@ -1,5 +1,7 @@
 package ru.sapozhnikov.aiagent.presentation.chatlist
 
+import ru.sapozhnikov.aiagent.domain.model.ConversationMode
+
 /**
  * Состояние UI экрана списка чатов.
  *
@@ -15,9 +17,11 @@ internal data class ChatListUiState(
  * @property id идентификатор диалога
  * @property title заголовок диалога
  * @property updatedAt отформатированная дата последнего обновления
+ * @property mode режим диалога
  */
 internal data class ConversationItem(
     val id: String,
     val title: String,
     val updatedAt: String,
+    val mode: ConversationMode = ConversationMode.CHAT,
 )

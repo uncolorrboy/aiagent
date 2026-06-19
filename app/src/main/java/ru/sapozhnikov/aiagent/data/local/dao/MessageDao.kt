@@ -67,4 +67,26 @@ internal interface MessageDao {
     /** Обновляет существующее сообщение. */
     @Update
     suspend fun update(message: MessageEntity)
+
+    /** Наблюдает за сообщениями конкретного этапа задачи. */
+    @Query(
+        "SELECT * FROM messages WHERE conversationId = :conversationId " +
+            "AND (taskStage = :taskStage OR (taskStage IS NULL AND :taskStage = 'DATA_COLLECTION')) " +
+            "ORDER BY timestamp ASC",
+    )
+    fun observeMessagesForTaskStage(conversationId: String, taskStage: String): Flow<List<MessageEntity>>
+
+    /** Возвращает сообщения конкретного этапа задачи. */
+    @Query(
+        "SELECT * FROM messages WHERE conversationId = :conversationId " +
+            "AND (taskStage = :taskStage OR (taskStage IS NULL AND :taskStage = 'DATA_COLLECTION')) " +
+            "ORDER BY timestamp ASC",
+    )
+    suspend fun getMessagesForTaskStage(conversationId: String, taskStage: String): List<MessageEntity>
+
+    /** Присваивает этап задачи сообщениям без taskStage (миграция legacy). */
+    @Query(
+        "UPDATE messages SET taskStage = :taskStage WHERE conversationId = :conversationId AND taskStage IS NULL",
+    )
+    suspend fun repairOrphanTaskMessages(conversationId: String, taskStage: String)
 }
