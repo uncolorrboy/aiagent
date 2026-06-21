@@ -25,4 +25,7 @@ internal interface TaskRepository {
     suspend fun buildStageArtifact(conversationId: String, stage: TaskStage): String
 
     suspend fun getArtifactsBeforeStage(conversationId: String, stage: TaskStage): List<TaskArtifact>
+
+    /** Удаляет артефакт и переписку этапа, с которого выполнен откат. */
+    suspend fun clearStageOnRollback(conversationId: String, leftStage: TaskStage)
 }

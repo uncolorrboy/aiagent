@@ -13,6 +13,7 @@ import ru.sapozhnikov.aiagent.domain.model.MessageRole
 import ru.sapozhnikov.aiagent.domain.model.SavedUserFileMessage
 import ru.sapozhnikov.aiagent.domain.model.TaskStage
 import ru.sapozhnikov.aiagent.domain.model.TaskStagePrompts
+import ru.sapozhnikov.aiagent.domain.model.TaskStageTransitions
 import ru.sapozhnikov.aiagent.domain.repository.ChatHistoryRepository
 import ru.sapozhnikov.aiagent.domain.repository.ConversationBranchRepository
 import ru.sapozhnikov.aiagent.domain.repository.SettingsRepository
@@ -118,7 +119,7 @@ internal class ChatHistoryInteractor @Inject constructor(
         taskStage: TaskStage? = null,
     ) {
         val branchId = resolveActiveBranchId(conversationId)
-        val cleanedText = TaskStagePrompts.stripTransitionMarkers(response.text)
+        val cleanedText = TaskStageTransitions.stripTransitionMarkers(response.text)
         val cleanedResponse = response.copy(text = cleanedText)
         repository.saveAiAgentMessage(conversationId, cleanedResponse, branchId, taskStage)
         if (repository.getConversationMode(conversationId) != ConversationMode.TASK) {
@@ -130,8 +131,9 @@ internal class ChatHistoryInteractor @Inject constructor(
     suspend fun saveTaskStageContinuationMessage(
         conversationId: String,
         stage: TaskStage,
+        fromStage: TaskStage? = null,
     ) {
-        val message = TaskStagePrompts.continuationMessageFor(stage) ?: return
+        val message = TaskStagePrompts.continuationMessageFor(stage, fromStage) ?: return
         val branchId = resolveActiveBranchId(conversationId)
         repository.saveMessage(conversationId, message, MessageRole.USER, branchId, stage)
     }

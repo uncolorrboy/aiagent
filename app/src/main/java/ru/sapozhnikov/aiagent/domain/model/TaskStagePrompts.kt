@@ -16,8 +16,18 @@ internal object TaskStagePrompts {
     /**
      * Автоматическое сообщение пользователя при входе на этап после перехода.
      * Запускает работу агента нового этапа, чтобы чат не оставался пустым.
+     *
+     * @param stage целевой этап
+     * @param fromStage этап, с которого выполнен переход (для различия входа и возврата)
      */
-    fun continuationMessageFor(stage: TaskStage): String? = when (stage) {
+    fun continuationMessageFor(stage: TaskStage, fromStage: TaskStage? = null): String? {
+        if (fromStage != null && TaskStageTransitions.isBackwardTransition(fromStage, stage)) {
+            return reentryMessageFor(stage)
+        }
+        return initialEntryMessageFor(stage)
+    }
+
+    private fun initialEntryMessageFor(stage: TaskStage): String? = when (stage) {
         TaskStage.PLANNING ->
             "Этап сбора данных завершён. Составь детальный план работы на основе собранных данных."
         TaskStage.EXECUTION ->
@@ -27,6 +37,19 @@ internal object TaskStagePrompts {
         TaskStage.DONE ->
             "Валидация завершена. Подведи итоги выполненной задачи."
         TaskStage.DATA_COLLECTION -> null
+    }
+
+    private fun reentryMessageFor(stage: TaskStage): String = when (stage) {
+        TaskStage.DATA_COLLECTION ->
+            "Нужно доработать собранные данные. Продолжи работу на этапе сбора информации."
+        TaskStage.PLANNING ->
+            "Нужно доработать план. Обнови план с учётом новых требований и замечаний."
+        TaskStage.EXECUTION ->
+            "Нужно доработать выполнение. Исправь результат согласно замечаниям валидации."
+        TaskStage.VALIDATION ->
+            "Нужно повторить проверку. Проведи валидацию заново с учётом внесённых исправлений."
+        TaskStage.DONE ->
+            "Задача снова активна. Подведи итоги выполненной работы."
     }
 
     /**
@@ -46,20 +69,28 @@ internal object TaskStagePrompts {
         }.trim()
     }
 
-    /** Удаляет случайные маркеры перехода из текста (на случай если модель их всё же выведет). */
-    fun stripTransitionMarkers(text: String): String {
-        return text.replace(
-            Regex("""\[\[TRANSITION:\w+\]\]""", RegexOption.IGNORE_CASE),
-            "",
-        ).trim()
-    }
+    private fun transitionInstructions(currentStage: TaskStage): String {
+        val allowed = TaskStageTransitions.allowedTargetStages(currentStage).map { target ->
+            val direction = when {
+                TaskStageTransitions.isBackwardTransition(currentStage, target) -> "возврат"
+                else -> "переход"
+            }
+            "$direction на «${target.displayName()}»: ${TaskStageTransitions.transitionMarkerFor(target)}"
+        }
+        return """
+Переход на другой этап выполняется ТОЛЬКО через специальный маркер в конце ответа.
+Допустимые маркеры с текущего этапа:
+${allowed.joinToString("\n") { "- $it" }}
 
-    private const val USER_CONTROLS_TRANSITION = """
-Переход на следующий этап выполняет ТОЛЬКО пользователь через кнопку в интерфейсе.
-НЕ пытайся переключить этап самостоятельно. НЕ используй маркеры [[TRANSITION:...]].
-Когда считаешь этап готовым — подведи итог и попроси пользователя нажать кнопку перехода, если он согласен.
-Пока пользователь не подтвердил — продолжай диалог: задавай вопросы, уточняй, дорабатывай.
-"""
+Правила:
+- Используй маркер ТОЛЬКО когда этап действительно завершён (или нужен возврат) и пользователь согласен.
+- НЕЛЬЗЯ перепрыгивать этапы — только переходы из списка выше (на один шаг вперёд или назад).
+- Маркер возврата используй, если нужно доработать предыдущий этап.
+- Маркер ставь отдельной строкой в самом конце ответа.
+- Пока пользователь не подтвердил — продолжай диалог: задавай вопросы, уточняй, дорабатывай.
+- Пользователь также может перейти вручную кнопками в интерфейсе.
+""".trimIndent()
+    }
 
     private val DATA_COLLECTION_PROMPT = """
 Ты — агент этапа «Сбор данных» в многоэтапной задаче.
@@ -74,8 +105,8 @@ internal object TaskStagePrompts {
 - Если пользователь просит сразу сделать работу — вежливо объясни, что сначала нужно собрать данные.
 - Дождись ответов пользователя на все важные вопросы, прежде чем считать сбор завершённым.
 
-Когда считаешь, что данных достаточно, кратко подведи итог и предложи пользователю нажать кнопку «Данные собраны → Планирование», если он согласен.
-$USER_CONTROLS_TRANSITION
+Когда считаешь, что данных достаточно, кратко подведи итог и, если пользователь согласен, добавь маркер перехода.
+${transitionInstructions(TaskStage.DATA_COLLECTION)}
 """.trimIndent()
 
     private val PLANNING_PROMPT = """
@@ -91,8 +122,8 @@ $USER_CONTROLS_TRANSITION
 - Учитывай замечания пользователя: дорабатывай план по его запросу.
 - НЕ считай план утверждённым, пока пользователь явно не подтвердит.
 
-Когда план готов к рассмотрению, представь его и предложи пользователю нажать кнопку «Утвердить план → Выполнение», если он согласен.
-$USER_CONTROLS_TRANSITION
+Когда план готов к рассмотрению, представь его и, если пользователь согласен, добавь маркер перехода.
+${transitionInstructions(TaskStage.PLANNING)}
 """.trimIndent()
 
     private val EXECUTION_PROMPT = """
@@ -107,8 +138,8 @@ $USER_CONTROLS_TRANSITION
 - НЕ возвращайся к сбору данных или перепланированию без явной необходимости.
 - Если обнаружен критический блокер — опиши его, но по возможности выполни максимум из плана.
 
-Когда работа выполнена, представь итоговый результат и предложи пользователю нажать кнопку «Работа завершена → Проверка».
-$USER_CONTROLS_TRANSITION
+Когда работа выполнена, представь итоговый результат и, если пользователь согласен, добавь маркер перехода.
+${transitionInstructions(TaskStage.EXECUTION)}
 """.trimIndent()
 
     private val VALIDATION_PROMPT = """
@@ -120,9 +151,9 @@ $USER_CONTROLS_TRANSITION
 - Сравни артефакты «Сбор данных», «Планирование» и «Выполнение».
 - Проверь полноту, корректность, соответствие требованиям и критериям из плана.
 - Составь отчёт: что выполнено, что не выполнено, замечания, рекомендации.
-- Если есть критические несоответствия — опиши их и попроси пользователя вернуться к этапу выполнения вручную.
-- Если всё в порядке — предложи пользователю нажать кнопку «Завершить задачу».
-$USER_CONTROLS_TRANSITION
+- Если есть критические несоответствия — опиши их и предложи вернуться к этапу выполнения маркером.
+- Если всё в порядке — добавь маркер завершения задачи.
+${transitionInstructions(TaskStage.VALIDATION)}
 """.trimIndent()
 
     private val DONE_PROMPT = """

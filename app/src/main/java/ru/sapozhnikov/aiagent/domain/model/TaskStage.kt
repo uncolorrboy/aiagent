@@ -46,6 +46,11 @@ internal fun TaskStage.advanceActionLabel(): String? = when (this) {
     TaskStage.DONE -> null
 }
 
+/** Текст кнопки возврата на предыдущий этап (инициируется пользователем). */
+internal fun TaskStage.revertActionLabel(): String? = previous()?.let { previousStage ->
+    "← Вернуться: ${previousStage.displayName()}"
+}
+
 /** Короткое имя этапа для вкладок. */
 internal fun TaskStage.shortName(): String = when (this) {
     TaskStage.DATA_COLLECTION -> "Сбор"

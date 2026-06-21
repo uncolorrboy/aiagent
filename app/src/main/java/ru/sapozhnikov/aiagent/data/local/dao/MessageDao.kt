@@ -89,4 +89,21 @@ internal interface MessageDao {
         "UPDATE messages SET taskStage = :taskStage WHERE conversationId = :conversationId AND taskStage IS NULL",
     )
     suspend fun repairOrphanTaskMessages(conversationId: String, taskStage: String)
+
+    /** Удаляет сообщения указанных этапов задачи. */
+    @Query(
+        """
+        DELETE FROM messages
+        WHERE conversationId = :conversationId
+        AND (
+            taskStage IN (:stages)
+            OR (taskStage IS NULL AND :clearLegacyOrphans = 1)
+        )
+        """,
+    )
+    suspend fun deleteMessagesForTaskStages(
+        conversationId: String,
+        stages: List<String>,
+        clearLegacyOrphans: Boolean,
+    )
 }
