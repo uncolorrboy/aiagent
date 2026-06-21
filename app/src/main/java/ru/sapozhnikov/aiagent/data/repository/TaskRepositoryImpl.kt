@@ -83,4 +83,14 @@ internal class TaskRepositoryImpl @Inject constructor(
             TaskStage.entries.indexOf(artifact.stage) < stageOrder
         }
     }
+
+    override suspend fun clearStageOnRollback(conversationId: String, leftStage: TaskStage) {
+        val stageName = leftStage.toEntityStage()
+        taskArtifactDao.deleteArtifactsForStages(conversationId, listOf(stageName))
+        messageDao.deleteMessagesForTaskStages(
+            conversationId = conversationId,
+            stages = listOf(stageName),
+            clearLegacyOrphans = leftStage == TaskStage.DATA_COLLECTION,
+        )
+    }
 }

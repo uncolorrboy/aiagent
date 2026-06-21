@@ -3,6 +3,7 @@ package ru.sapozhnikov.aiagent.domain.interactor
 import kotlinx.coroutines.flow.Flow
 import ru.sapozhnikov.aiagent.domain.model.TaskArtifact
 import ru.sapozhnikov.aiagent.domain.model.TaskStage
+import ru.sapozhnikov.aiagent.domain.model.TaskStageTransitions
 import ru.sapozhnikov.aiagent.domain.model.TaskState
 import ru.sapozhnikov.aiagent.domain.repository.TaskRepository
 import javax.inject.Inject
@@ -43,9 +44,13 @@ internal class TaskInteractor @Inject constructor(
         val current = taskRepository.getTaskState(conversationId) ?: return null
         val activeStage = current.activeStage
 
-        if (!isValidTransition(activeStage, targetStage)) return null
+        if (!TaskStageTransitions.isValidTransition(activeStage, targetStage)) return null
 
-        saveArtifactForStage(conversationId, activeStage)
+        if (TaskStageTransitions.isBackwardTransition(activeStage, targetStage)) {
+            taskRepository.clearStageOnRollback(conversationId, activeStage)
+        } else {
+            saveArtifactForStage(conversationId, activeStage)
+        }
 
         val newState = current.copy(
             activeStage = targetStage,
@@ -59,6 +64,12 @@ internal class TaskInteractor @Inject constructor(
         val current = taskRepository.getTaskState(conversationId) ?: return null
         val next = current.activeStage.next() ?: return null
         return transitionToStage(conversationId, next)
+    }
+
+    suspend fun revertToPreviousStage(conversationId: String): TaskStage? {
+        val current = taskRepository.getTaskState(conversationId) ?: return null
+        val previous = current.activeStage.previous() ?: return null
+        return transitionToStage(conversationId, previous)
     }
 
     suspend fun getArtifactsBeforeStage(conversationId: String, stage: TaskStage): List<TaskArtifact> {
@@ -78,10 +89,4 @@ internal class TaskInteractor @Inject constructor(
         )
     }
 
-    private fun isValidTransition(from: TaskStage, to: TaskStage): Boolean {
-        if (from == TaskStage.DONE) return false
-        if (to == TaskStage.DONE) return from == TaskStage.VALIDATION
-        if (to == TaskStage.EXECUTION && from == TaskStage.VALIDATION) return true
-        return from.next() == to
-    }
 }

@@ -6,7 +6,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
@@ -27,7 +29,9 @@ import ru.sapozhnikov.aiagent.domain.model.ConversationMemorySelection
 import ru.sapozhnikov.aiagent.domain.model.ConversationMode
 import ru.sapozhnikov.aiagent.domain.model.TaskStage
 import ru.sapozhnikov.aiagent.domain.model.TaskStagePrompts
+import ru.sapozhnikov.aiagent.domain.model.TaskStageTransitions
 import ru.sapozhnikov.aiagent.domain.model.advanceActionLabel
+import ru.sapozhnikov.aiagent.domain.model.revertActionLabel
 import javax.inject.Inject
 
 /**
@@ -55,6 +59,8 @@ internal class ChatViewModel @Inject constructor(
 
     private val _errorEvents = Channel<String>(Channel.BUFFERED)
     val errorEvents = _errorEvents.receiveAsFlow()
+
+    private var pendingTransitionJob: Job? = null
 
     init {
         viewModelScope.launch {
@@ -85,14 +91,8 @@ internal class ChatViewModel @Inject constructor(
                 }
             }.collect { messages ->
                 _uiState.update { state ->
-                    val isInputEnabled = !state.isTaskMode || (
-                        state.activeTaskStage != null &&
-                            state.viewingTaskStage == state.activeTaskStage &&
-                            state.activeTaskStage != TaskStage.DONE
-                        )
                     state.copy(
                         items = messages.reversed().map { it.toUiModel() },
-                        isInputEnabled = isInputEnabled,
                     )
                 }
             }
@@ -175,21 +175,21 @@ internal class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             taskInteractor.observeTaskState(conversationId).collect { taskState ->
                 _uiState.update { state ->
-                    val isInputEnabled = !state.isTaskMode || (
-                        taskState?.activeStage != null &&
-                            taskState.viewingStage == taskState.activeStage &&
-                            taskState.activeStage != TaskStage.DONE
-                        )
+                    val hasPendingTransition = state.pendingTaskTransition != null
+                    val controls = computeTaskStageControls(
+                        isTaskMode = state.isTaskMode,
+                        activeStage = taskState?.activeStage,
+                        viewingStage = taskState?.viewingStage,
+                        hasPendingTransition = hasPendingTransition,
+                    )
                     state.copy(
                         activeTaskStage = taskState?.activeStage,
                         viewingTaskStage = taskState?.viewingStage,
-                        isInputEnabled = isInputEnabled,
-                        canAdvanceTaskStage = state.isTaskMode &&
-                            taskState?.activeStage != null &&
-                            taskState.viewingStage == taskState.activeStage &&
-                            taskState.activeStage != TaskStage.DONE &&
-                            taskState.activeStage.next() != null,
-                        advanceTaskStageLabel = taskState?.activeStage?.advanceActionLabel(),
+                        isInputEnabled = controls.isInputEnabled,
+                        canAdvanceTaskStage = controls.canAdvance,
+                        advanceTaskStageLabel = controls.advanceLabel,
+                        canRevertTaskStage = controls.canRevert,
+                        revertTaskStageLabel = controls.revertLabel,
                     )
                 }
             }
@@ -218,24 +218,22 @@ internal class ChatViewModel @Inject constructor(
         if (_uiState.value.isLoading || !_uiState.value.canAdvanceTaskStage) return
 
         viewModelScope.launch {
-            _uiState.update { state ->
-                state.copy(
-                    isLoading = true,
-                    sendButtonState = SendButtonState.IN_PROCESS,
-                )
-            }
+            cancelPendingTransition()
+            val currentStage = taskInteractor.getTaskState(conversationId)?.activeStage ?: return@launch
+            val newStage = taskInteractor.advanceToNextStage(conversationId) ?: return@launch
+            performTaskStageTransition(newStage, currentStage)
+        }
+    }
 
-            val newStage = taskInteractor.advanceToNextStage(conversationId)
-            if (newStage != null) {
-                sendTaskStageContinuation(newStage)
-            }
+    /** Возврат на предыдущий этап по инициативе пользователя. */
+    fun onRevertTaskStage() {
+        if (_uiState.value.isLoading || !_uiState.value.canRevertTaskStage) return
 
-            _uiState.update { state ->
-                state.copy(
-                    isLoading = false,
-                    sendButtonState = SendButtonState.DEFAULT,
-                )
-            }
+        viewModelScope.launch {
+            cancelPendingTransition()
+            val currentStage = taskInteractor.getTaskState(conversationId)?.activeStage ?: return@launch
+            val newStage = taskInteractor.revertToPreviousStage(conversationId) ?: return@launch
+            performTaskStageTransition(newStage, currentStage)
         }
     }
 
@@ -281,6 +279,7 @@ internal class ChatViewModel @Inject constructor(
         if (message.isBlank() || _uiState.value.isLoading || !_uiState.value.isInputEnabled) return
 
         viewModelScope.launch {
+            cancelPendingTransition()
             sendMessageWithAiResponse(message.trim())
         }
     }
@@ -290,6 +289,7 @@ internal class ChatViewModel @Inject constructor(
         val taskStage = _uiState.value.activeTaskStage.takeIf { _uiState.value.isTaskMode }
 
         viewModelScope.launch {
+            cancelPendingTransition()
             _uiState.update { state ->
                 state.copy(
                     isLoading = true,
@@ -352,11 +352,13 @@ internal class ChatViewModel @Inject constructor(
 
         val aiResult = aiAgentInteractor.sendMessage(context, message)
         if (aiResult.isSuccess) {
+            val response = aiResult.getOrThrow()
             chatHistoryInteractor.saveAiAgentMessage(
                 conversationId,
-                aiResult.getOrThrow(),
+                response,
                 taskStage,
             )
+            scheduleTransitionFromAssistantResponse(response.text, taskStage)
         } else {
             aiResult.exceptionOrNull()?.let { _errorEvents.send(it.toUserMessage()) }
         }
@@ -369,11 +371,132 @@ internal class ChatViewModel @Inject constructor(
         }
     }
 
-    private suspend fun sendTaskStageContinuation(stage: TaskStage) {
-        chatHistoryInteractor.saveTaskStageContinuationMessage(conversationId, stage)
+    private suspend fun performTaskStageTransition(
+        stage: TaskStage,
+        fromStage: TaskStage,
+    ) {
+        _uiState.update { state ->
+            state.copy(
+                isLoading = true,
+                sendButtonState = SendButtonState.IN_PROCESS,
+            )
+        }
+
+        sendTaskStageContinuation(stage, fromStage)
+
+        _uiState.update { state ->
+            state.copy(
+                isLoading = false,
+                sendButtonState = SendButtonState.DEFAULT,
+            )
+        }
+    }
+
+    private fun scheduleTransitionFromAssistantResponse(
+        responseText: String,
+        currentStage: TaskStage?,
+    ) {
+        if (!_uiState.value.isTaskMode || currentStage == null) return
+
+        val targetStage = TaskStageTransitions.parseTransitionMarker(responseText) ?: return
+        if (!TaskStageTransitions.isValidTransition(currentStage, targetStage)) return
+
+        pendingTransitionJob?.cancel()
+        pendingTransitionJob = viewModelScope.launch {
+            val startTime = System.currentTimeMillis()
+            while (true) {
+                val elapsed = System.currentTimeMillis() - startTime
+                val progress = (elapsed.toFloat() / TRANSITION_DELAY_MS).coerceIn(0f, 1f)
+                _uiState.update { state ->
+                    state.copy(
+                        pendingTaskTransition = PendingTaskStageTransition(
+                            targetStage = targetStage,
+                            fromStage = currentStage,
+                            progress = progress,
+                        ),
+                        isInputEnabled = false,
+                        canAdvanceTaskStage = false,
+                        canRevertTaskStage = false,
+                    )
+                }
+                if (elapsed >= TRANSITION_DELAY_MS) break
+                delay(PROGRESS_UPDATE_INTERVAL_MS)
+            }
+
+            _uiState.update { it.copy(pendingTaskTransition = null) }
+            val transitionedStage = taskInteractor.transitionToStage(conversationId, targetStage)
+            if (transitionedStage != null) {
+                performTaskStageTransition(transitionedStage, currentStage)
+            }
+        }
+    }
+
+    private fun cancelPendingTransition() {
+        pendingTransitionJob?.cancel()
+        pendingTransitionJob = null
+        _uiState.update { state ->
+            if (state.pendingTaskTransition == null) return@update state
+            val controls = computeTaskStageControls(
+                isTaskMode = state.isTaskMode,
+                activeStage = state.activeTaskStage,
+                viewingStage = state.viewingTaskStage,
+                hasPendingTransition = false,
+            )
+            state.copy(
+                pendingTaskTransition = null,
+                isInputEnabled = controls.isInputEnabled,
+                canAdvanceTaskStage = controls.canAdvance,
+                advanceTaskStageLabel = controls.advanceLabel,
+                canRevertTaskStage = controls.canRevert,
+                revertTaskStageLabel = controls.revertLabel,
+            )
+        }
+    }
+
+    private fun computeTaskStageControls(
+        isTaskMode: Boolean,
+        activeStage: TaskStage?,
+        viewingStage: TaskStage?,
+        hasPendingTransition: Boolean,
+    ): TaskStageControls {
+        if (!isTaskMode || activeStage == null || hasPendingTransition) {
+            return TaskStageControls(
+                isInputEnabled = !isTaskMode,
+                canAdvance = false,
+                advanceLabel = null,
+                canRevert = false,
+                revertLabel = null,
+            )
+        }
+
+        val isViewingActiveStage = viewingStage == activeStage
+        val canAdvance = isViewingActiveStage &&
+            activeStage != TaskStage.DONE &&
+            activeStage.next() != null
+        val canRevert = isViewingActiveStage &&
+            TaskStageTransitions.defaultPreviousStage(activeStage) != null
+
+        return TaskStageControls(
+            isInputEnabled = isViewingActiveStage && activeStage != TaskStage.DONE,
+            canAdvance = canAdvance,
+            advanceLabel = activeStage.advanceActionLabel(),
+            canRevert = canRevert,
+            revertLabel = activeStage.revertActionLabel(),
+        )
+    }
+
+    private suspend fun sendTaskStageContinuation(
+        stage: TaskStage,
+        fromStage: TaskStage,
+    ) {
+        chatHistoryInteractor.saveTaskStageContinuationMessage(
+            conversationId,
+            stage,
+            fromStage,
+        )
 
         val context = chatHistoryInteractor.getContextForApi(conversationId)
-        val continuationMessage = TaskStagePrompts.continuationMessageFor(stage) ?: return
+        val continuationMessage = TaskStagePrompts.continuationMessageFor(stage, fromStage) ?: return
 
         val aiResult = aiAgentInteractor.sendMessage(context, continuationMessage)
         if (aiResult.isSuccess) {
@@ -387,6 +510,14 @@ internal class ChatViewModel @Inject constructor(
         }
     }
 
+    private data class TaskStageControls(
+        val isInputEnabled: Boolean,
+        val canAdvance: Boolean,
+        val advanceLabel: String?,
+        val canRevert: Boolean,
+        val revertLabel: String?,
+    )
+
     private fun Throwable.toUserMessage(): String {
         val details = localizedMessage?.takeIf { it.isNotBlank() }
         return if (details != null) {
@@ -394,5 +525,10 @@ internal class ChatViewModel @Inject constructor(
         } else {
             "Не удалось отправить сообщение. Попробуйте ещё раз"
         }
+    }
+
+    private companion object {
+        const val TRANSITION_DELAY_MS = 3_000L
+        const val PROGRESS_UPDATE_INTERVAL_MS = 50L
     }
 }

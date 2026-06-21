@@ -19,4 +19,12 @@ internal interface TaskArtifactDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(artifact: TaskArtifactEntity)
+
+    @Query(
+        """
+        DELETE FROM task_artifacts
+        WHERE conversationId = :conversationId AND stage IN (:stages)
+        """,
+    )
+    suspend fun deleteArtifactsForStages(conversationId: String, stages: List<String>)
 }

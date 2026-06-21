@@ -5,6 +5,7 @@ import ru.sapozhnikov.aiagent.domain.model.ContextManagementStrategy
 import ru.sapozhnikov.aiagent.domain.model.ConversationMode
 import ru.sapozhnikov.aiagent.domain.model.MemoryInstance
 import ru.sapozhnikov.aiagent.domain.model.TaskStage
+import ru.sapozhnikov.aiagent.domain.model.TaskStageTransitions
 
 /**
  * Состояние UI экрана чата.
@@ -30,7 +31,11 @@ import ru.sapozhnikov.aiagent.domain.model.TaskStage
  * @property isTaskMode активен ли режим задачи
  * @property activeTaskStage текущий активный этап задачи
  * @property viewingTaskStage этап, переписку которого просматривает пользователь
- * @property isInputEnabled доступен ли ввод сообщений
+ * @property canAdvanceTaskStage можно ли перейти на следующий этап вручную
+ * @property advanceTaskStageLabel текст кнопки ручного перехода
+ * @property canRevertTaskStage можно ли вернуться на предыдущий этап вручную
+ * @property revertTaskStageLabel текст кнопки возврата
+ * @property pendingTaskTransition отложенный переход по маркеру ассистента
  */
 internal data class ChatScreenUiState(
     val isLoading: Boolean = false,
@@ -57,7 +62,26 @@ internal data class ChatScreenUiState(
     val isInputEnabled: Boolean = true,
     val canAdvanceTaskStage: Boolean = false,
     val advanceTaskStageLabel: String? = null,
+    val canRevertTaskStage: Boolean = false,
+    val revertTaskStageLabel: String? = null,
+    val pendingTaskTransition: PendingTaskStageTransition? = null,
 )
+
+/**
+ * Отложенный переход между этапами задачи (после маркера ассистента).
+ *
+ * @property targetStage целевой этап
+ * @property fromStage этап, с которого выполняется переход
+ * @property progress прогресс ожидания от 0 до 1
+ */
+internal data class PendingTaskStageTransition(
+    val targetStage: TaskStage,
+    val fromStage: TaskStage,
+    val progress: Float,
+) {
+    val isBackward: Boolean =
+        TaskStageTransitions.isBackwardTransition(fromStage, targetStage)
+}
 
 /**
  * UI-модель ветки диалога.

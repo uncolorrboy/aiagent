@@ -40,7 +40,9 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -114,6 +116,7 @@ internal fun ChatRoot(
         onSaveInvariantSelection = viewModel::onSaveInvariantSelection,
         onTaskStageSelected = viewModel::onTaskStageSelected,
         onAdvanceTaskStage = viewModel::onAdvanceTaskStage,
+        onRevertTaskStage = viewModel::onRevertTaskStage,
     )
 }
 
@@ -135,6 +138,7 @@ private fun ChatScreen(
     onSaveInvariantSelection: (Set<String>) -> Unit,
     onTaskStageSelected: (TaskStage) -> Unit,
     onAdvanceTaskStage: () -> Unit,
+    onRevertTaskStage: () -> Unit,
 ) {
     if (uiState.isMemorySheetVisible) {
         ChatMemoryBottomSheet(
@@ -238,30 +242,83 @@ private fun ChatScreen(
                 onSendMessageButtonClicked = onSendMessageButtonClicked,
                 onTextFileSelected = onTextFileSelected,
                 onAdvanceTaskStage = onAdvanceTaskStage,
+                onRevertTaskStage = onRevertTaskStage,
             )
         }
     }
 }
 
-/** Кнопка перехода на следующий этап задачи. */
+/** Прогресс-бар отложенного перехода между этапами задачи. */
+@Composable
+private fun TaskStageTransitionProgressBar(
+    pendingTransition: PendingTaskStageTransition,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Text(
+            text = if (pendingTransition.isBackward) {
+                "Возврат к этапу «${pendingTransition.targetStage.displayName()}»…"
+            } else {
+                "Переход к этапу «${pendingTransition.targetStage.displayName()}»…"
+            },
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        LinearProgressIndicator(
+            progress = { pendingTransition.progress },
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+}
+
+/** Кнопки перехода и возврата между этапами задачи. */
 @Composable
 private fun TaskStageAdvanceBar(
-    label: String,
+    advanceLabel: String?,
+    revertLabel: String?,
+    canAdvance: Boolean,
+    canRevert: Boolean,
     enabled: Boolean,
     onAdvance: () -> Unit,
+    onRevert: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Row(
         modifier = modifier
             .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
             .padding(horizontal = 16.dp, vertical = 4.dp),
-        horizontalArrangement = Arrangement.End,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        FilledTonalButton(
-            enabled = enabled,
-            onClick = onAdvance,
-        ) {
-            Text(label)
+        if (canRevert && revertLabel != null) {
+            OutlinedButton(
+                enabled = enabled,
+                onClick = onRevert,
+            ) {
+                Text(
+                    text = revertLabel,
+                    maxLines = 1,
+                    softWrap = false,
+                )
+            }
+        }
+
+        if (canAdvance && advanceLabel != null) {
+            FilledTonalButton(
+                enabled = enabled,
+                onClick = onAdvance,
+            ) {
+                Text(
+                    text = advanceLabel,
+                    maxLines = 1,
+                    softWrap = false,
+                )
+            }
         }
     }
 }
@@ -333,6 +390,7 @@ private fun ChatContent(
     onSendMessageButtonClicked: (String) -> Unit,
     onTextFileSelected: (Uri) -> Unit,
     onAdvanceTaskStage: () -> Unit,
+    onRevertTaskStage: () -> Unit,
 ) {
     val listState = rememberLazyListState()
     val context = LocalContext.current
@@ -381,26 +439,44 @@ private fun ChatContent(
 
             var textInput by remember { mutableStateOf("") }
 
-            if (uiState.canAdvanceTaskStage && uiState.advanceTaskStageLabel != null) {
-                TaskStageAdvanceBar(
-                    label = uiState.advanceTaskStageLabel,
-                    enabled = !uiState.isLoading,
-                    onAdvance = onAdvanceTaskStage,
-                    modifier = Modifier.constrainAs(advanceBarRef) {
-                        start.linkTo(parent.start)
-                        end.linkTo(parent.end)
-                        bottom.linkTo(textInputRef.top)
-                    },
-                )
-            } else {
-                Spacer(
-                    modifier = Modifier.constrainAs(advanceBarRef) {
-                        start.linkTo(parent.start)
-                        end.linkTo(parent.end)
-                        bottom.linkTo(textInputRef.top)
-                        height = Dimension.value(0.dp)
-                    },
-                )
+            when {
+                uiState.pendingTaskTransition != null -> {
+                    TaskStageTransitionProgressBar(
+                        pendingTransition = uiState.pendingTaskTransition,
+                        modifier = Modifier.constrainAs(advanceBarRef) {
+                            start.linkTo(parent.start)
+                            end.linkTo(parent.end)
+                            bottom.linkTo(textInputRef.top)
+                        },
+                    )
+                }
+                uiState.canAdvanceTaskStage && uiState.advanceTaskStageLabel != null ||
+                    uiState.canRevertTaskStage && uiState.revertTaskStageLabel != null -> {
+                    TaskStageAdvanceBar(
+                        advanceLabel = uiState.advanceTaskStageLabel,
+                        revertLabel = uiState.revertTaskStageLabel,
+                        canAdvance = uiState.canAdvanceTaskStage,
+                        canRevert = uiState.canRevertTaskStage,
+                        enabled = !uiState.isLoading,
+                        onAdvance = onAdvanceTaskStage,
+                        onRevert = onRevertTaskStage,
+                        modifier = Modifier.constrainAs(advanceBarRef) {
+                            start.linkTo(parent.start)
+                            end.linkTo(parent.end)
+                            bottom.linkTo(textInputRef.top)
+                        },
+                    )
+                }
+                else -> {
+                    Spacer(
+                        modifier = Modifier.constrainAs(advanceBarRef) {
+                            start.linkTo(parent.start)
+                            end.linkTo(parent.end)
+                            bottom.linkTo(textInputRef.top)
+                            height = Dimension.value(0.dp)
+                        },
+                    )
+                }
             }
 
             OutlinedTextField(
@@ -419,7 +495,7 @@ private fun ChatContent(
                         if (uiState.isInputEnabled) {
                             "Введите сообщение..."
                         } else {
-                            "Просмотр этапа «${uiState.viewingTaskStage?.displayName() ?: ""}»"
+                            "Ввод недоступен"
                         },
                     )
                 },
@@ -623,6 +699,7 @@ private fun ChatScreenPreview() {
             onSaveInvariantSelection = {},
             onTaskStageSelected = {},
             onAdvanceTaskStage = {},
+            onRevertTaskStage = {},
         )
     }
 }
