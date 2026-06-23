@@ -23,6 +23,8 @@ data class ChatCompletionResponse(
 data class ChatChoiceDto(
     @SerializedName("message")
     val message: ChatMessageDto,
+    @SerializedName("finish_reason")
+    val finishReason: String? = null,
 )
 
 /**

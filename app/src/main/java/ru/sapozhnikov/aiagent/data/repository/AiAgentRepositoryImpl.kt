@@ -6,6 +6,7 @@ import ru.sapozhnikov.aiagent.data.remote.DeepSeekApi
 import ru.sapozhnikov.aiagent.data.remote.dto.ChatCompletionRequest
 import ru.sapozhnikov.aiagent.data.remote.dto.ChatMessageDto
 import ru.sapozhnikov.aiagent.data.remote.dto.ThinkingDto
+import ru.sapozhnikov.aiagent.data.remote.dto.ToolDto
 import ru.sapozhnikov.aiagent.domain.model.AiAgentMessage
 import ru.sapozhnikov.aiagent.domain.model.ApiConversationContext
 import ru.sapozhnikov.aiagent.domain.model.AssistantInvariant
@@ -30,7 +31,112 @@ internal class AiAgentRepositoryImpl @Inject constructor(
         userMessage: String,
     ): Result<AiAgentMessage> {
         return try {
-            val requestMessages = buildList {
+            val requestMessages = buildRequestMessages(context, userMessage)
+            val request = ChatCompletionRequest(
+                model = MODEL,
+                messages = requestMessages,
+                thinking = ThinkingDto(type = "disabled"),
+            )
+            val response = api.createChatCompletion(request)
+            parseAssistantResponse(response)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun sendMessageWithTools(
+        context: ApiConversationContext,
+        userMessage: String,
+        tools: List<ToolDto>,
+        toolExecutor: suspend (name: String, argumentsJson: String) -> Result<String>,
+    ): Result<AiAgentMessage> {
+        return try {
+            val conversationMessages = buildRequestMessages(context, userMessage).toMutableList()
+            var totalUsage = TokenUsage.zero()
+
+            repeat(MAX_TOOL_ITERATIONS) {
+                val request = ChatCompletionRequest(
+                    model = MODEL,
+                    messages = conversationMessages,
+                    thinking = ThinkingDto(type = "disabled"),
+                    tools = tools,
+                )
+                val response = api.createChatCompletion(request)
+                val choice = response.choices.firstOrNull()
+                    ?: return Result.failure(IllegalStateException("Пустой ответ от DeepSeek API"))
+                val assistantMessage = choice.message
+                response.usage?.let { usage ->
+                    totalUsage = totalUsage + TokenUsage(
+                        promptTokens = usage.promptTokens,
+                        completionTokens = usage.completionTokens,
+                        totalTokens = usage.totalTokens,
+                        promptCacheHitTokens = usage.promptCacheHitTokens,
+                        promptCacheMissTokens = usage.promptCacheMissTokens,
+                    )
+                }
+
+                val toolCalls = assistantMessage.toolCalls
+                if (toolCalls.isNullOrEmpty()) {
+                    val content = assistantMessage.content
+                    return if (content.isNullOrBlank()) {
+                        Result.failure(IllegalStateException("Пустой ответ от DeepSeek API"))
+                    } else {
+                        Result.success(AiAgentMessage(text = content, usage = totalUsage))
+                    }
+                }
+
+                conversationMessages.add(assistantMessage)
+                for (toolCall in toolCalls) {
+                    val toolResult = toolExecutor(
+                        toolCall.function.name,
+                        toolCall.function.arguments,
+                    ).getOrElse { error ->
+                        "Ошибка выполнения инструмента: ${error.message ?: "неизвестная ошибка"}"
+                    }
+                    conversationMessages.add(
+                        ChatMessageDto(
+                            role = "tool",
+                            content = toolResult,
+                            toolCallId = toolCall.id,
+                        ),
+                    )
+                }
+            }
+
+            Result.failure(IllegalStateException("Превышен лимит вызовов инструментов ($MAX_TOOL_ITERATIONS)"))
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    private fun parseAssistantResponse(response: ru.sapozhnikov.aiagent.data.remote.dto.ChatCompletionResponse): Result<AiAgentMessage> {
+        val content = response.choices.firstOrNull()?.message?.content
+        val usage = response.usage
+        return if (content.isNullOrBlank()) {
+            Result.failure(IllegalStateException("Пустой ответ от DeepSeek API"))
+        } else if (usage == null) {
+            Result.failure(IllegalStateException("Ответ API не содержит данных о токенах"))
+        } else {
+            Result.success(
+                AiAgentMessage(
+                    text = content,
+                    usage = TokenUsage(
+                        promptTokens = usage.promptTokens,
+                        completionTokens = usage.completionTokens,
+                        totalTokens = usage.totalTokens,
+                        promptCacheHitTokens = usage.promptCacheHitTokens,
+                        promptCacheMissTokens = usage.promptCacheMissTokens,
+                    ),
+                ),
+            )
+        }
+    }
+
+    private fun buildRequestMessages(
+        context: ApiConversationContext,
+        userMessage: String,
+    ): List<ChatMessageDto> {
+        return buildList {
                 context.invariants.takeIf { it.isNotEmpty() }?.let { invariants ->
                     add(
                         ChatMessageDto(
@@ -100,35 +206,6 @@ internal class AiAgentRepositoryImpl @Inject constructor(
                     ),
                 )
             }
-            val request = ChatCompletionRequest(
-                model = MODEL,
-                messages = requestMessages,
-                thinking = ThinkingDto(type = "disabled"),
-            )
-            val response = api.createChatCompletion(request)
-            val content = response.choices.firstOrNull()?.message?.content
-            val usage = response.usage
-            if (content.isNullOrBlank()) {
-                Result.failure(IllegalStateException("Пустой ответ от DeepSeek API"))
-            } else if (usage == null) {
-                Result.failure(IllegalStateException("Ответ API не содержит данных о токенах"))
-            } else {
-                Result.success(
-                    AiAgentMessage(
-                        text = content,
-                        usage = TokenUsage(
-                            promptTokens = usage.promptTokens,
-                            completionTokens = usage.completionTokens,
-                            totalTokens = usage.totalTokens,
-                            promptCacheHitTokens = usage.promptCacheHitTokens,
-                            promptCacheMissTokens = usage.promptCacheMissTokens,
-                        ),
-                    ),
-                )
-            }
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
     }
 
     override suspend fun summarizeMessages(
@@ -285,6 +362,7 @@ internal class AiAgentRepositoryImpl @Inject constructor(
 
     private companion object {
         const val MODEL = "deepseek-v4-flash"
+        const val MAX_TOOL_ITERATIONS = 10
         const val SUMMARY_SYSTEM_PROMPT =
             "Сожми переданный тебе диалог до 1-2 предложений. По сути, просто коротко опиши суть того, что в этой беседе обсуждали в этих конкретных сообщениях"
         const val FACTS_SYSTEM_PROMPT =

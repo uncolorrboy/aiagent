@@ -1,5 +1,6 @@
 package ru.sapozhnikov.aiagent.domain.repository
 
+import ru.sapozhnikov.aiagent.data.remote.dto.ToolDto
 import ru.sapozhnikov.aiagent.domain.model.AiAgentMessage
 import ru.sapozhnikov.aiagent.domain.model.ApiConversationContext
 import ru.sapozhnikov.aiagent.domain.model.ChatHistoryMessage
@@ -16,6 +17,16 @@ internal interface AiAgentRepository {
     suspend fun sendMessage(
         context: ApiConversationContext,
         userMessage: String,
+    ): Result<AiAgentMessage>
+
+    /**
+     * Отправляет сообщение с поддержкой tool calling и выполняет инструменты через [toolExecutor].
+     */
+    suspend fun sendMessageWithTools(
+        context: ApiConversationContext,
+        userMessage: String,
+        tools: List<ToolDto>,
+        toolExecutor: suspend (name: String, argumentsJson: String) -> Result<String>,
     ): Result<AiAgentMessage>
 
     /**

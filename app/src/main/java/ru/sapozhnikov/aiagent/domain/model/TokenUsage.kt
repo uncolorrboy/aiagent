@@ -15,4 +15,18 @@ internal data class TokenUsage(
     val totalTokens: Int,
     val promptCacheHitTokens: Int,
     val promptCacheMissTokens: Int,
-)
+) {
+    operator fun plus(other: TokenUsage): TokenUsage {
+        return TokenUsage(
+            promptTokens = promptTokens + other.promptTokens,
+            completionTokens = completionTokens + other.completionTokens,
+            totalTokens = totalTokens + other.totalTokens,
+            promptCacheHitTokens = promptCacheHitTokens + other.promptCacheHitTokens,
+            promptCacheMissTokens = promptCacheMissTokens + other.promptCacheMissTokens,
+        )
+    }
+
+    companion object {
+        fun zero() = TokenUsage(0, 0, 0, 0, 0)
+    }
+}

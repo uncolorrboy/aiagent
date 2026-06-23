@@ -18,7 +18,9 @@ data class ChatCompletionRequest(
     @SerializedName("thinking")
     val thinking: ThinkingDto,
     @SerializedName("stream")
-    val stream: Boolean = false
+    val stream: Boolean = false,
+    @SerializedName("tools")
+    val tools: List<ToolDto>? = null,
 )
 
 /**
@@ -31,7 +33,13 @@ data class ChatMessageDto(
     @SerializedName("role")
     val role: String,
     @SerializedName("content")
-    val content: String,
+    val content: String? = null,
+    @SerializedName("tool_calls")
+    val toolCalls: List<ToolCallDto>? = null,
+    @SerializedName("tool_call_id")
+    val toolCallId: String? = null,
+    @SerializedName("name")
+    val name: String? = null,
 )
 
 /**
