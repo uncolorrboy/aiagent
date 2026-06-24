@@ -12,6 +12,7 @@ import ru.sapozhnikov.aiagent.data.repository.ConversationFactsRepositoryImpl
 import ru.sapozhnikov.aiagent.data.repository.ConversationInvariantBindingRepositoryImpl
 import ru.sapozhnikov.aiagent.data.repository.ConversationMemoryRepositoryImpl
 import ru.sapozhnikov.aiagent.data.repository.ConversationSummaryRepositoryImpl
+import ru.sapozhnikov.aiagent.data.repository.McpToolRepositoryImpl
 import ru.sapozhnikov.aiagent.data.repository.ProfileMemoryRepositoryImpl
 import ru.sapozhnikov.aiagent.data.repository.SettingsRepositoryImpl
 import ru.sapozhnikov.aiagent.data.repository.TaskRepositoryImpl
@@ -24,6 +25,7 @@ import ru.sapozhnikov.aiagent.domain.repository.ConversationFactsRepository
 import ru.sapozhnikov.aiagent.domain.repository.ConversationInvariantBindingRepository
 import ru.sapozhnikov.aiagent.domain.repository.ConversationMemoryRepository
 import ru.sapozhnikov.aiagent.domain.repository.ConversationSummaryRepository
+import ru.sapozhnikov.aiagent.domain.repository.McpToolRepository
 import ru.sapozhnikov.aiagent.domain.repository.ProfileMemoryRepository
 import ru.sapozhnikov.aiagent.domain.repository.SettingsRepository
 import ru.sapozhnikov.aiagent.domain.repository.TaskRepository
@@ -51,6 +53,12 @@ internal abstract class RepositoryModule {
     abstract fun bindSettingsRepository(
         repository: SettingsRepositoryImpl,
     ): SettingsRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindMcpToolRepository(
+        repository: McpToolRepositoryImpl,
+    ): McpToolRepository
 
     @Binds
     @Singleton

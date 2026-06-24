@@ -17,7 +17,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import ru.sapozhnikov.aiagent.domain.interactor.AiAgentInteractor
+import ru.sapozhnikov.aiagent.domain.interactor.AgentOrchestratorInteractor
 import ru.sapozhnikov.aiagent.domain.interactor.ChatHistoryInteractor
 import ru.sapozhnikov.aiagent.domain.interactor.ConversationBranchInteractor
 import ru.sapozhnikov.aiagent.domain.interactor.InvariantInteractor
@@ -40,7 +40,7 @@ import javax.inject.Inject
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 internal class ChatViewModel @Inject constructor(
-    private val aiAgentInteractor: AiAgentInteractor,
+    private val agentOrchestratorInteractor: AgentOrchestratorInteractor,
     private val chatHistoryInteractor: ChatHistoryInteractor,
     private val conversationBranchInteractor: ConversationBranchInteractor,
     private val settingsInteractor: SettingsInteractor,
@@ -350,7 +350,7 @@ internal class ChatViewModel @Inject constructor(
         val context = chatHistoryInteractor.getContextForApi(conversationId)
         chatHistoryInteractor.saveUserMessage(conversationId, message, taskStage)
 
-        val aiResult = aiAgentInteractor.sendMessage(context, message)
+        val aiResult = agentOrchestratorInteractor.sendMessage(context, message)
         if (aiResult.isSuccess) {
             val response = aiResult.getOrThrow()
             chatHistoryInteractor.saveAiAgentMessage(
@@ -498,7 +498,7 @@ internal class ChatViewModel @Inject constructor(
         val context = chatHistoryInteractor.getContextForApi(conversationId)
         val continuationMessage = TaskStagePrompts.continuationMessageFor(stage, fromStage) ?: return
 
-        val aiResult = aiAgentInteractor.sendMessage(context, continuationMessage)
+        val aiResult = agentOrchestratorInteractor.sendMessage(context, continuationMessage)
         if (aiResult.isSuccess) {
             chatHistoryInteractor.saveAiAgentMessage(
                 conversationId,

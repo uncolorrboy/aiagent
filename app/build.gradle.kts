@@ -6,6 +6,7 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 android {
@@ -78,6 +79,10 @@ dependencies {
     implementation(libs.androidx.room.ktx)
     implementation(libs.compose.markdown)
     implementation(libs.androidx.datastore.preferences)
+    implementation(libs.ktor.client.okhttp)
+    implementation(libs.ktor.client.core)
+    implementation(libs.mcp.kotlin.sdk.client)
+    implementation(libs.kotlinx.serialization.json)
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.appcompat)
