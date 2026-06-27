@@ -362,7 +362,7 @@ internal class AiAgentRepositoryImpl @Inject constructor(
 
     private companion object {
         const val MODEL = "deepseek-v4-flash"
-        const val MAX_TOOL_ITERATIONS = 10
+        const val MAX_TOOL_ITERATIONS = 30
         const val SUMMARY_SYSTEM_PROMPT =
             "Сожми переданный тебе диалог до 1-2 предложений. По сути, просто коротко опиши суть того, что в этой беседе обсуждали в этих конкретных сообщениях"
         const val FACTS_SYSTEM_PROMPT =
