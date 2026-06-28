@@ -5,6 +5,7 @@ import com.google.gson.reflect.TypeToken
 import ru.sapozhnikov.aiagent.data.remote.dto.FunctionDefinitionDto
 import ru.sapozhnikov.aiagent.data.remote.dto.ToolDto
 import ru.sapozhnikov.aiagent.domain.model.McpToolDefinition
+import ru.sapozhnikov.aiagent.domain.model.McpToolNaming
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -15,7 +16,7 @@ internal class McpToolMapper @Inject constructor() {
     private val gson = Gson()
     private val mapType = object : TypeToken<Map<String, Any?>>() {}.type
 
-    fun toToolDto(tool: McpToolDefinition): ToolDto {
+    fun toToolDto(apiName: String, tool: McpToolDefinition): ToolDto {
         val parameters = tool.inputSchemaJson?.let { schemaJson ->
             runCatching {
                 gson.fromJson<Map<String, Any?>>(schemaJson, mapType)
@@ -24,14 +25,14 @@ internal class McpToolMapper @Inject constructor() {
 
         return ToolDto(
             function = FunctionDefinitionDto(
-                name = tool.name,
+                name = apiName,
                 description = tool.description,
                 parameters = parameters,
             ),
         )
     }
 
-    fun toToolDtos(tools: List<McpToolDefinition>): List<ToolDto> {
-        return tools.map(::toToolDto)
+    fun toToolDtos(registeredTools: List<McpToolNaming.RegisteredTool>): List<ToolDto> {
+        return registeredTools.map { registered -> toToolDto(registered.apiName, registered.tool) }
     }
 }

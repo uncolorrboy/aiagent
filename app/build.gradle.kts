@@ -81,6 +81,9 @@ dependencies {
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.ktor.client.okhttp)
     implementation(libs.ktor.client.core)
+    implementation(libs.ktor.client.content.negotiation)
+    implementation(libs.ktor.serialization.kotlinx.json)
+    implementation(libs.androidx.browser)
     implementation(libs.mcp.kotlin.sdk.client)
     implementation(libs.kotlinx.serialization.json)
 

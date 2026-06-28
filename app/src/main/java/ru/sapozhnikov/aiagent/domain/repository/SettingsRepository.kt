@@ -2,7 +2,7 @@ package ru.sapozhnikov.aiagent.domain.repository
 
 import kotlinx.coroutines.flow.Flow
 import ru.sapozhnikov.aiagent.domain.model.ContextManagementStrategy
-import ru.sapozhnikov.aiagent.domain.model.McpToolDefinition
+import ru.sapozhnikov.aiagent.domain.model.McpServerConfig
 
 /** Репозиторий пользовательских настроек приложения. */
 internal interface SettingsRepository {
@@ -22,29 +22,15 @@ internal interface SettingsRepository {
 
     suspend fun isMcpEnabled(): Boolean
 
-    fun observeMcpServerUrl(): Flow<String>
+    fun observeMcpServers(): Flow<List<McpServerConfig>>
 
-    suspend fun getMcpServerUrl(): String
+    suspend fun getMcpServers(): List<McpServerConfig>
 
-    suspend fun getMcpAuthToken(): String
+    suspend fun saveMcpServers(servers: List<McpServerConfig>)
 
-    suspend fun setMcpServerUrl(url: String)
+    suspend fun updateMcpServer(server: McpServerConfig)
 
-    fun observeMcpAuthToken(): Flow<String>
+    suspend fun addMcpServer(server: McpServerConfig)
 
-    suspend fun setMcpAuthToken(token: String)
-
-    fun observeMcpServerName(): Flow<String?>
-
-    fun observeMcpServerVersion(): Flow<String?>
-
-    fun observeMcpTools(): Flow<List<McpToolDefinition>>
-
-    suspend fun saveMcpConnectionInfo(
-        serverName: String,
-        serverVersion: String?,
-        tools: List<McpToolDefinition>,
-    )
-
-    suspend fun clearMcpConnectionInfo()
+    suspend fun removeMcpServer(serverId: String)
 }

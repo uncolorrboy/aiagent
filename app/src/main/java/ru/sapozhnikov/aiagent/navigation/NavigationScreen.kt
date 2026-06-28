@@ -20,6 +20,23 @@ sealed class Screen(val route: String) {
     /** Экран настроек приложения. */
     object Settings : Screen("settings")
 
+    /** Экран управления MCP-серверами. */
+    object McpServers : Screen("mcp_servers")
+
+    /**
+     * Экран создания или редактирования MCP-сервера.
+     */
+    object McpServerEditor : Screen("mcp_server_editor/{serverId}") {
+        const val ROUTE = "mcp_server_editor/{serverId}"
+        const val SERVER_ID_ARG = "serverId"
+        const val NEW_SERVER_ID = "new"
+
+        fun createRoute(serverId: String? = null): String {
+            val id = serverId ?: NEW_SERVER_ID
+            return "mcp_server_editor/$id"
+        }
+    }
+
     /**
      * Экран задачи с этапами.
      *
