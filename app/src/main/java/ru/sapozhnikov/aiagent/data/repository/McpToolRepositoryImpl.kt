@@ -19,6 +19,7 @@ import kotlinx.serialization.json.buildJsonObject
 import ru.sapozhnikov.aiagent.data.remote.mcp.McpToolMapper
 import ru.sapozhnikov.aiagent.domain.model.McpServerConnection
 import ru.sapozhnikov.aiagent.domain.model.McpToolDefinition
+import ru.sapozhnikov.aiagent.domain.model.McpToolNaming
 import ru.sapozhnikov.aiagent.domain.repository.McpToolRepository
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -30,21 +31,19 @@ internal class McpToolRepositoryImpl @Inject constructor(
 ) : McpToolRepository {
 
     private val mutex = Mutex()
-    private var httpClient: HttpClient? = null
-    private var mcpClient: Client? = null
-    private var cachedConnection: McpServerConnection? = null
+    private val connections = mutableMapOf<String, ActiveConnection>()
 
     override suspend fun connect(
+        serverId: String,
         serverUrl: String,
         authToken: String?,
     ): Result<McpServerConnection> = runCatching {
         mutex.withLock {
-            disconnectInternal()
+            disconnectInternal(serverId)
 
             val client = HttpClient(OkHttp) {
                 install(SSE)
             }
-            httpClient = client
 
             val mcp = Client(
                 clientInfo = Implementation(
@@ -62,7 +61,6 @@ internal class McpToolRepositoryImpl @Inject constructor(
             }
 
             mcp.connect(transport)
-            mcpClient = mcp
 
             val serverInfo = mcp.serverVersion
                 ?: throw IllegalStateException("MCP-сервер не вернул информацию о себе")
@@ -75,22 +73,40 @@ internal class McpToolRepositoryImpl @Inject constructor(
                 )
             }
 
-            McpServerConnection(
+            val registeredTools = McpToolNaming.registerServerTools(serverId, tools)
+            val connection = McpServerConnection(
+                serverId = serverId,
                 serverName = serverInfo.name,
                 serverVersion = serverInfo.version,
                 tools = tools,
-            ).also { cachedConnection = it }
+            )
+            connections[serverId] = ActiveConnection(
+                httpClient = client,
+                mcpClient = mcp,
+                connection = connection,
+                registeredTools = registeredTools,
+            )
+            connection
         }
     }
 
-    override suspend fun disconnect() {
+    override suspend fun disconnect(serverId: String) {
         mutex.withLock {
-            disconnectInternal()
+            disconnectInternal(serverId)
         }
     }
 
-    override suspend fun listTools(): Result<List<McpToolDefinition>> = runCatching {
-        val mcp = mcpClient ?: throw IllegalStateException("MCP-сервер не подключён")
+    override suspend fun disconnectAll() {
+        mutex.withLock {
+            connections.keys.toList().forEach { serverId ->
+                disconnectInternal(serverId)
+            }
+        }
+    }
+
+    override suspend fun listTools(serverId: String): Result<List<McpToolDefinition>> = runCatching {
+        val mcp = connections[serverId]?.mcpClient
+            ?: throw IllegalStateException("MCP-сервер не подключён")
         mcp.listTools().tools.map { tool ->
             McpToolDefinition(
                 name = tool.name,
@@ -100,8 +116,11 @@ internal class McpToolRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun callTool(name: String, argumentsJson: String): Result<String> = runCatching {
-        val mcp = mcpClient ?: throw IllegalStateException("MCP-сервер не подключён")
+    override suspend fun callTool(apiToolName: String, argumentsJson: String): Result<String> = runCatching {
+        val (serverId, toolName) = McpToolNaming.parseApiName(apiToolName)
+            ?: throw IllegalArgumentException("Неизвестный инструмент: $apiToolName")
+        val mcp = connections[serverId]?.mcpClient
+            ?: throw IllegalStateException("MCP-сервер не подключён")
         val arguments = if (argumentsJson.isBlank()) {
             buildJsonObject { }
         } else {
@@ -110,7 +129,7 @@ internal class McpToolRepositoryImpl @Inject constructor(
         val result = mcp.callTool(
             CallToolRequest(
                 CallToolRequestParams(
-                    name = name,
+                    name = toolName,
                     arguments = arguments,
                 ),
             ),
@@ -120,15 +139,26 @@ internal class McpToolRepositoryImpl @Inject constructor(
             .joinToString("\n") { it.text ?: "" }
     }
 
-    override fun getCachedConnection(): McpServerConnection? = cachedConnection
-
-    override fun getToolDtos() = mcpToolMapper.toToolDtos(cachedConnection?.tools.orEmpty())
-
-    private suspend fun disconnectInternal() {
-        runCatching { mcpClient?.close() }
-        runCatching { httpClient?.close() }
-        mcpClient = null
-        httpClient = null
-        cachedConnection = null
+    override fun getCachedConnections(): Map<String, McpServerConnection> {
+        return connections.mapValues { it.value.connection }
     }
+
+    override fun getToolDtos() = connections.values.flatMap { activeConnection ->
+        mcpToolMapper.toToolDtos(activeConnection.registeredTools)
+    }
+
+    private suspend fun disconnectInternal(serverId: String) {
+        connections.remove(serverId)?.let { activeConnection ->
+            McpToolNaming.unregisterServer(serverId)
+            runCatching { activeConnection.mcpClient.close() }
+            runCatching { activeConnection.httpClient.close() }
+        }
+    }
+
+    private data class ActiveConnection(
+        val httpClient: HttpClient,
+        val mcpClient: Client,
+        val connection: McpServerConnection,
+        val registeredTools: List<McpToolNaming.RegisteredTool>,
+    )
 }

@@ -2,20 +2,20 @@ package ru.sapozhnikov.aiagent.domain.interactor
 
 import ru.sapozhnikov.aiagent.domain.model.AiAgentMessage
 import ru.sapozhnikov.aiagent.domain.model.ApiConversationContext
-import ru.sapozhnikov.aiagent.domain.model.McpServerConnection
 import ru.sapozhnikov.aiagent.domain.repository.AiAgentRepository
 import ru.sapozhnikov.aiagent.domain.repository.McpToolRepository
 import ru.sapozhnikov.aiagent.domain.repository.SettingsRepository
 import javax.inject.Inject
 
 /**
- * Оркестратор запросов к LLM: при включённом MCP передаёт инструменты сервера в DeepSeek
+ * Оркестратор запросов к LLM: при включённом MCP передаёт инструменты серверов в DeepSeek
  * и выполняет tool calls через MCP.
  */
 internal class AgentOrchestratorInteractor @Inject constructor(
     private val aiAgentRepository: AiAgentRepository,
     private val mcpToolRepository: McpToolRepository,
     private val settingsRepository: SettingsRepository,
+    private val settingsInteractor: SettingsInteractor,
 ) {
 
     suspend fun sendMessage(
@@ -31,7 +31,7 @@ internal class AgentOrchestratorInteractor @Inject constructor(
             return aiAgentRepository.sendMessage(context, trimmedMessage)
         }
 
-        if (ensureMcpConnection() == null) {
+        if (!ensureMcpConnections()) {
             return aiAgentRepository.sendMessage(context, trimmedMessage)
         }
 
@@ -50,21 +50,19 @@ internal class AgentOrchestratorInteractor @Inject constructor(
         )
     }
 
-    private suspend fun ensureMcpConnection(): McpServerConnection? {
-        mcpToolRepository.getCachedConnection()?.let { return it }
+    private suspend fun ensureMcpConnections(): Boolean {
+        val enabledServers = settingsRepository.getMcpServers().filter { it.enabled }
+        if (enabledServers.isEmpty()) return false
 
-        val url = settingsRepository.getMcpServerUrl()
-        if (url.isBlank()) return null
+        val cachedConnections = mcpToolRepository.getCachedConnections()
+        val missingServers = enabledServers.filter { server ->
+            cachedConnections[server.id] == null
+        }
+        if (missingServers.isEmpty()) return true
 
-        val authToken = settingsRepository.getMcpAuthToken()
-        return mcpToolRepository.connect(url, authToken.takeIf { it.isNotBlank() })
-            .onSuccess { connection ->
-                settingsRepository.saveMcpConnectionInfo(
-                    serverName = connection.serverName,
-                    serverVersion = connection.serverVersion,
-                    tools = connection.tools,
-                )
-            }
-            .getOrNull()
+        val results = missingServers.map { server ->
+            settingsInteractor.connectToMcpServer(server)
+        }
+        return results.any { it.isSuccess }
     }
 }

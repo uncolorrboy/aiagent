@@ -10,6 +10,8 @@ import androidx.navigation.navArgument
 import ru.sapozhnikov.aiagent.presentation.chat.ChatRoot
 import ru.sapozhnikov.aiagent.presentation.chatlist.ChatListRoot
 import ru.sapozhnikov.aiagent.presentation.settings.InvariantEditorRoot
+import ru.sapozhnikov.aiagent.presentation.settings.McpServerEditorRoot
+import ru.sapozhnikov.aiagent.presentation.settings.McpServersRoot
 import ru.sapozhnikov.aiagent.presentation.settings.MemoryInstanceEditorRoot
 import ru.sapozhnikov.aiagent.presentation.settings.SettingsRoot
 import java.util.UUID
@@ -62,6 +64,29 @@ internal fun NavigationStack(modifier: Modifier = Modifier) {
                 onOpenInvariantEditor = { invariantId ->
                     navController.navigate(Screen.InvariantEditor.createRoute(invariantId))
                 },
+                onOpenMcpServers = {
+                    navController.navigate(Screen.McpServers.route)
+                },
+            )
+        }
+
+        composable(route = Screen.McpServers.route) {
+            McpServersRoot(
+                onBack = { navController.popBackStack() },
+                onOpenServerEditor = { serverId ->
+                    navController.navigate(Screen.McpServerEditor.createRoute(serverId))
+                },
+            )
+        }
+
+        composable(
+            route = Screen.McpServerEditor.ROUTE,
+            arguments = listOf(
+                navArgument(Screen.McpServerEditor.SERVER_ID_ARG) { type = NavType.StringType },
+            ),
+        ) {
+            McpServerEditorRoot(
+                onBack = { navController.popBackStack() },
             )
         }
 

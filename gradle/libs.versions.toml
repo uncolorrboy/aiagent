@@ -24,6 +24,7 @@ datastore = "1.1.7"
 ktor = "3.2.3"
 mcp = "0.13.0"
 kotlinxSerialization = "1.7.3"
+browser = "1.8.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -73,6 +74,11 @@ androidx-datastore-preferences = { group = "androidx.datastore", name = "datasto
 # Ktor (MCP client)
 ktor-client-okhttp = { group = "io.ktor", name = "ktor-client-okhttp", version.ref = "ktor" }
 ktor-client-core = { group = "io.ktor", name = "ktor-client-core", version.ref = "ktor" }
+ktor-client-content-negotiation = { group = "io.ktor", name = "ktor-client-content-negotiation", version.ref = "ktor" }
+ktor-serialization-kotlinx-json = { group = "io.ktor", name = "ktor-serialization-kotlinx-json", version.ref = "ktor" }
+
+# Browser (OAuth Custom Tabs)
+androidx-browser = { group = "androidx.browser", name = "browser", version.ref = "browser" }
 
 # MCP
 mcp-kotlin-sdk-client = { group = "io.modelcontextprotocol", name = "kotlin-sdk-client", version.ref = "mcp" }

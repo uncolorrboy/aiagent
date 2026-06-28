@@ -1,6 +1,7 @@
 package ru.sapozhnikov.aiagent.presentation.settings
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -13,18 +14,15 @@ import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
@@ -34,10 +32,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -45,7 +41,6 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ru.sapozhnikov.aiagent.domain.model.AssistantInvariant
 import ru.sapozhnikov.aiagent.domain.model.ContextManagementStrategy
-import ru.sapozhnikov.aiagent.domain.model.McpToolDefinition
 import ru.sapozhnikov.aiagent.domain.model.MemoryInstance
 import ru.sapozhnikov.aiagent.ui.theme.AiAgentTheme
 
@@ -60,6 +55,7 @@ internal fun SettingsRoot(
     onBack: () -> Unit,
     onOpenMemoryEditor: (MemoryEditorType, String?) -> Unit,
     onOpenInvariantEditor: (String?) -> Unit,
+    onOpenMcpServers: () -> Unit,
 ) {
     val viewModel: SettingsViewModel = hiltViewModel()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -82,12 +78,7 @@ internal fun SettingsRoot(
         onEditInvariant = { invariant -> onOpenInvariantEditor(invariant.id) },
         onDeleteInvariant = viewModel::onDeleteInvariant,
         onMcpEnabledChanged = viewModel::onMcpEnabledChanged,
-        onMcpServerUrlChanged = viewModel::onMcpServerUrlChanged,
-        onMcpAuthTokenChanged = viewModel::onMcpAuthTokenChanged,
-        onMcpServerUrlFocusLost = viewModel::onMcpServerUrlFocusLost,
-        onMcpAuthTokenFocusLost = viewModel::onMcpAuthTokenFocusLost,
-        onMcpConnectClicked = viewModel::onMcpConnectClicked,
-        onMcpDisconnectClicked = viewModel::onMcpDisconnectClicked,
+        onOpenMcpServers = onOpenMcpServers,
     )
 }
 
@@ -108,12 +99,7 @@ private fun SettingsScreen(
     onEditInvariant: (AssistantInvariant) -> Unit,
     onDeleteInvariant: (String) -> Unit,
     onMcpEnabledChanged: (Boolean) -> Unit,
-    onMcpServerUrlChanged: (String) -> Unit,
-    onMcpAuthTokenChanged: (String) -> Unit,
-    onMcpServerUrlFocusLost: () -> Unit,
-    onMcpAuthTokenFocusLost: () -> Unit,
-    onMcpConnectClicked: () -> Unit,
-    onMcpDisconnectClicked: () -> Unit,
+    onOpenMcpServers: () -> Unit,
 ) {
     Scaffold(
         modifier = Modifier
@@ -140,22 +126,12 @@ private fun SettingsScreen(
                 .padding(innerPadding)
                 .verticalScroll(rememberScrollState()),
         ) {
-            McpServerSection(
+            McpServersEntry(
                 mcpEnabled = uiState.mcpEnabled,
-                serverUrl = uiState.mcpServerUrl,
-                authToken = uiState.mcpAuthToken,
-                connectionStatus = uiState.mcpConnectionStatus,
-                serverName = uiState.mcpServerName,
-                serverVersion = uiState.mcpServerVersion,
-                tools = uiState.mcpTools,
-                connectionError = uiState.mcpConnectionError,
+                serverCount = uiState.mcpServerCount,
+                connectedCount = uiState.mcpConnectedCount,
                 onMcpEnabledChanged = onMcpEnabledChanged,
-                onServerUrlChanged = onMcpServerUrlChanged,
-                onAuthTokenChanged = onMcpAuthTokenChanged,
-                onServerUrlFocusLost = onMcpServerUrlFocusLost,
-                onAuthTokenFocusLost = onMcpAuthTokenFocusLost,
-                onConnectClicked = onMcpConnectClicked,
-                onDisconnectClicked = onMcpDisconnectClicked,
+                onOpenMcpServers = onOpenMcpServers,
             )
 
             ContextManagementStrategySetting(
@@ -191,24 +167,14 @@ private fun SettingsScreen(
     }
 }
 
-/** Секция подключения к MCP-серверу. */
+/** Компактная секция перехода к управлению MCP-серверами. */
 @Composable
-private fun McpServerSection(
+private fun McpServersEntry(
     mcpEnabled: Boolean,
-    serverUrl: String,
-    authToken: String,
-    connectionStatus: McpConnectionStatus,
-    serverName: String?,
-    serverVersion: String?,
-    tools: List<McpToolDefinition>,
-    connectionError: String?,
+    serverCount: Int,
+    connectedCount: Int,
     onMcpEnabledChanged: (Boolean) -> Unit,
-    onServerUrlChanged: (String) -> Unit,
-    onAuthTokenChanged: (String) -> Unit,
-    onServerUrlFocusLost: () -> Unit,
-    onAuthTokenFocusLost: () -> Unit,
-    onConnectClicked: () -> Unit,
-    onDisconnectClicked: () -> Unit,
+    onOpenMcpServers: () -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -221,7 +187,7 @@ private fun McpServerSection(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = "MCP-сервер",
+                text = "MCP-серверы",
                 style = MaterialTheme.typography.titleMedium,
             )
             Switch(
@@ -229,140 +195,37 @@ private fun McpServerSection(
                 onCheckedChange = onMcpEnabledChanged,
             )
         }
-        Text(
-            text = "Подключение к внешнему MCP-серверу для использования инструментов в чате",
-            modifier = Modifier.padding(bottom = 12.dp),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
 
-        if (mcpEnabled) {
-            OutlinedTextField(
-                value = serverUrl,
-                onValueChange = onServerUrlChanged,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .onFocusChanged { focusState ->
-                        if (!focusState.isFocused) {
-                            onServerUrlFocusLost()
-                        }
-                    },
-                label = { Text("URL сервера") },
-                placeholder = { Text("http://10.0.2.2:3000/mcp") },
-                singleLine = true,
-                enabled = connectionStatus != McpConnectionStatus.CONNECTING,
-            )
-
-            OutlinedTextField(
-                value = authToken,
-                onValueChange = onAuthTokenChanged,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 8.dp)
-                    .onFocusChanged { focusState ->
-                        if (!focusState.isFocused) {
-                            onAuthTokenFocusLost()
-                        }
-                    },
-                label = { Text("Bearer-токен (опционально)") },
-                placeholder = { Text("Для защищённого сервера на VPS") },
-                singleLine = true,
-                visualTransformation = PasswordVisualTransformation(),
-                enabled = connectionStatus != McpConnectionStatus.CONNECTING,
-            )
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                if (connectionStatus == McpConnectionStatus.CONNECTING) {
-                    CircularProgressIndicator(modifier = Modifier.padding(end = 8.dp))
-                    Text(
-                        text = "Подключение…",
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                } else if (connectionStatus == McpConnectionStatus.CONNECTED) {
-                    OutlinedButton(onClick = onDisconnectClicked) {
-                        Text("Отключить")
-                    }
-                } else {
-                    Button(onClick = onConnectClicked) {
-                        Text("Подключиться")
-                    }
-                }
-            }
-
-            connectionError?.let { error ->
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onOpenMcpServers)
+                .padding(vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = error,
-                    modifier = Modifier.padding(top = 8.dp),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error,
-                )
-            }
-
-            if (serverName != null) {
-                Text(
-                    text = "Сервер",
-                    modifier = Modifier.padding(top = 16.dp, bottom = 4.dp),
-                    style = MaterialTheme.typography.titleSmall,
-                )
-                Text(
-                    text = buildString {
-                        append(serverName)
-                        serverVersion?.let { append(" v$it") }
+                    text = when {
+                        serverCount == 0 -> "Настроить подключения"
+                        connectedCount > 0 -> "Подключено $connectedCount из $serverCount"
+                        else -> "Серверов: $serverCount"
                     },
                     style = MaterialTheme.typography.bodyLarge,
                 )
-            }
-
-            if (tools.isNotEmpty()) {
                 Text(
-                    text = "Инструменты (${tools.size})",
-                    modifier = Modifier.padding(top = 16.dp, bottom = 8.dp),
-                    style = MaterialTheme.typography.titleSmall,
-                )
-                tools.forEach { tool ->
-                    McpToolItem(tool = tool)
-                }
-            } else if (connectionStatus == McpConnectionStatus.CONNECTED) {
-                Text(
-                    text = "Сервер не предоставляет инструментов",
+                    text = "Управление внешними MCP-серверами и инструментами",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-        }
-
-        HorizontalDivider(modifier = Modifier.padding(top = 12.dp))
-    }
-}
-
-@Composable
-private fun McpToolItem(tool: McpToolDefinition) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 6.dp),
-    ) {
-        Text(
-            text = tool.name,
-            style = MaterialTheme.typography.bodyLarge,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-        tool.description?.takeIf { it.isNotBlank() }?.let { description ->
-            Text(
-                text = description,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 3,
-                overflow = TextOverflow.Ellipsis,
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = "Открыть",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+
+        HorizontalDivider(modifier = Modifier.padding(top = 4.dp))
     }
 }
 
@@ -658,6 +521,9 @@ private fun SettingsScreenPreview() {
                 workingMemoryInstances = listOf(
                     MemoryInstance("1", "Задача A", "Описание задачи"),
                 ),
+                mcpEnabled = true,
+                mcpServerCount = 2,
+                mcpConnectedCount = 1,
             ),
             onBack = {},
             onContextManagementStrategyChanged = {},
@@ -671,12 +537,7 @@ private fun SettingsScreenPreview() {
             onEditInvariant = {},
             onDeleteInvariant = {},
             onMcpEnabledChanged = {},
-            onMcpServerUrlChanged = {},
-            onMcpAuthTokenChanged = {},
-            onMcpServerUrlFocusLost = {},
-            onMcpAuthTokenFocusLost = {},
-            onMcpConnectClicked = {},
-            onMcpDisconnectClicked = {},
+            onOpenMcpServers = {},
         )
     }
 }

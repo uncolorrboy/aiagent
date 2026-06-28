@@ -16,11 +16,13 @@ internal data class McpToolDefinition(
 /**
  * Результат успешного подключения к MCP-серверу.
  *
+ * @property serverId идентификатор сервера в настройках
  * @property serverName имя сервера из MCP initialize
  * @property serverVersion версия сервера
  * @property tools список доступных инструментов
  */
 internal data class McpServerConnection(
+    val serverId: String,
     val serverName: String,
     val serverVersion: String?,
     val tools: List<McpToolDefinition>,
